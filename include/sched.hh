@@ -162,6 +162,7 @@ public:
     template <class Pred>
     static void wait_until(mutex_t* mtx, Pred pred);
     void wake();
+    cpu* wake_get_cpu();
     static void sleep_until(u64 abstime);
     static void yield();
     static void exit() __attribute__((__noreturn__));
@@ -380,6 +381,11 @@ extern cpu __thread* current_cpu;
 inline cpu* thread::tcpu()
 {
     return _cpu;
+}
+
+inline void thread::wake()
+{
+    wake_get_cpu(); // ignore return value
 }
 
 inline cpu* cpu::current()

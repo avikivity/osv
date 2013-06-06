@@ -7,6 +7,9 @@
 #include "exceptions.hh"
 #include "interrupt.hh"
 #include "apic.hh"
+#include <osv/trace.hh>
+
+tracepoint<1001, unsigned, unsigned> trace_msix_migrate("msix_migrate", "vector=0x%02x apic_id=0x%x");
 
 using namespace pci;
 
@@ -60,6 +63,40 @@ void msix_vector::interrupt(void)
     _handler();
 }
 
+void msix_vector::set_affinity(unsigned apic_id)
+{
+    msi_message msix_msg = apic->compose_msix(_vector, apic_id);
+    for (auto entry_id : _entryids) {
+        _dev->msix_write_entry(entry_id, msix_msg._addr, msix_msg._data);
+    }
+}
+
+msix_wake_thread_with_affinity::msix_wake_thread_with_affinity(msix_vector& msix, sched::thread* thread)
+    : _msix(msix)
+    , _thread(thread)
+    , _current()
+    , _counter()
+    , _cpu_stats(sched::cpus.size())  // FIXME: resize on cpu  hotplug
+{
+}
+
+void msix_wake_thread_with_affinity::operator()()
+{
+    auto cpu = _thread->wake_get_cpu();
+    ++_cpu_stats[cpu->id];
+    if (++_counter == 1000) {  // FIXME: what's a good value?
+        _counter = 0;
+        auto imax = std::max_element(_cpu_stats.begin(), _cpu_stats.end());
+        auto max = sched::cpus[imax - _cpu_stats.begin()];
+        if (max != _current) {
+            _current = max;
+            trace_msix_migrate(_msix.get_vector(), max->arch.apic_id);
+            _msix.set_affinity(max->arch.apic_id);
+            std::fill(_cpu_stats.begin(), _cpu_stats.end(), 0);
+        }
+    }
+}
+
 interrupt_manager::interrupt_manager(pci::function* dev)
     : _dev(dev)
 {
@@ -90,7 +127,7 @@ bool interrupt_manager::easy_register(std::initializer_list<msix_binding> bindin
     for (auto binding : bindings) {
         msix_vector* vec = assigned[idx++];
         sched::thread *isr = binding.thread;
-        bool assign_ok = assign_isr(vec, [isr]{ isr->wake(); });
+        bool assign_ok = assign_isr(vec, msix_wake_thread_with_affinity(*vec, isr));
         if (!assign_ok) {
             free_vectors(assigned);
             return false;
