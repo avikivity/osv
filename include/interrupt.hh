@@ -27,6 +27,7 @@ public:
     void add_entryid(unsigned entry_id);
     void interrupt(void);
     void set_handler(std::function<void ()> handler);
+    void set_affinity(unsigned apic_id);
 
 private:
     // Handler to invoke...
@@ -45,6 +46,18 @@ struct msix_binding {
     std::function<void ()> isr;
     // bottom half
     sched::thread *t;
+};
+
+class msix_wake_thread_with_affinity {
+public:
+    explicit msix_wake_thread_with_affinity(msix_vector& msix, sched::thread* thread);
+    void operator()();
+private:
+    msix_vector& _msix;
+    sched::thread* _thread;
+    sched::cpu* _current;
+    unsigned _counter;
+    std::vector<unsigned> _cpu_stats;
 };
 
 class interrupt_manager {
