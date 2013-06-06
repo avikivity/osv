@@ -7,6 +7,9 @@
 #include "exceptions.hh"
 #include "interrupt.hh"
 #include "apic.hh"
+#include <osv/trace.hh>
+
+TRACEPOINT(trace_msix_migrate, "vector=0x%02x apic_id=0x%x", unsigned, unsigned);
 
 using namespace pci;
 
@@ -60,6 +63,49 @@ void msix_vector::interrupt(void)
     _handler();
 }
 
+void msix_vector::set_affinity(unsigned apic_id)
+{
+    msi_message msix_msg = apic->compose_msix(_vector, apic_id);
+    for (auto entry_id : _entryids) {
+        _dev->msix_write_entry(entry_id, msix_msg._addr, msix_msg._data);
+    }
+}
+
+msix_wake_thread_with_affinity::msix_wake_thread_with_affinity(msix_vector& msix, sched::thread* thread)
+    : _msix(msix)
+    , _thread(thread)
+{
+}
+
+void msix_wake_thread_with_affinity::operator()()
+{
+    auto cpu = _thread->wake_get_cpu();
+    if (cpu == _current && cpu == _bound) {
+        // all is well
+        return;
+    }
+    if (cpu == _bound) {
+        // moved back to bound cpu
+        _current = cpu;
+        return;
+    }
+    if (cpu != _current) {
+        // roaming around, clear stats
+        _counter = 0;
+        _current = cpu;
+    }
+    // on wrong cpu
+    ++_counter;
+    if (_counter < 1000) {  // FIXME: what's a good value?
+        // let's not be hasty, rebinding the interrupt is expensive
+        return;
+    }
+    _counter = 0;
+    _current = _bound = cpu;
+    trace_msix_migrate(_msix.get_vector(), cpu->arch.apic_id);
+    _msix.set_affinity(cpu->arch.apic_id);
+}
+
 interrupt_manager::interrupt_manager(pci::function* dev)
     : _dev(dev)
 {
@@ -92,7 +138,8 @@ bool interrupt_manager::easy_register(std::initializer_list<msix_binding> bindin
         auto isr = binding.isr;
         auto t = binding.t;
 
-        bool assign_ok = assign_isr(vec, [=] { if (isr) isr(); t->wake(); });
+        msix_wake_thread_with_affinity wake(*vec, t);
+        bool assign_ok = assign_isr(vec, [=]() mutable { if (isr) isr(); wake(); });
         if (!assign_ok) {
             free_vectors(assigned);
             return false;

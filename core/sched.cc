@@ -327,12 +327,12 @@ void thread::prepare_wait()
     _status.store(status::waiting);
 }
 
-void thread::wake()
+cpu* thread::wake_get_cpu()
 {
     trace_wake(this);
     status old_status = status::waiting;
     if (!_status.compare_exchange_strong(old_status, status::waking)) {
-        return;
+        return _cpu;
     }
     preempt_disable();
     unsigned c = cpu::current()->id;
@@ -347,6 +347,7 @@ void thread::wake()
         // We'll also reschedule at the end of an interrupt if needed
     }
     preempt_enable();
+    return _cpu;
 }
 
 void thread::main()
