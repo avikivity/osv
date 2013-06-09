@@ -11,6 +11,7 @@
 #include <boost/intrusive/list.hpp>
 #include <osv/mutex.h>
 #include <atomic>
+#include <list>
 #include "osv/lockless-queue.hh"
 
 extern "C" {
@@ -184,6 +185,7 @@ private:
     void complete() __attribute__((__noreturn__));
     void suspend_timers();
     void resume_timers();
+    void alter(std::function<void (thread*)> f); // run in safe context to alter thread
     static void on_thread_stack(thread* t);
     template <class Mutex, class Pred>
     static void do_wait_until(Mutex& mtx, Pred pred);
@@ -214,6 +216,7 @@ private:
     u64 _vruntime;
     u64 _borrow;
     std::function<void ()> _cleanup;
+    struct alteration_entry;
     friend void thread_main_c(thread* t);
     friend class wait_guard;
     friend class cpu;
@@ -292,6 +295,11 @@ struct cpu {
     unsigned load();
     void reschedule_from_interrupt(bool preempt = false);
     void enqueue(thread& t, u64 now);
+    void alteration_queue_process();
+    void alteration_queue_enqueue(thread::alteration_entry* e);
+    mutex alteration_queue_mutex;
+    std::atomic<bool> alteration_queue_attention;
+    std::list<thread::alteration_entry*> alteration_queue;
 };
 
 void preempt();

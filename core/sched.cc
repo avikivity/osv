@@ -39,6 +39,20 @@ constexpr u64 max_slice = 10_ms;
 
 namespace sched {
 
+struct thread::alteration_entry {
+    alteration_entry(thread* target, std::function<void (thread*)> func);
+    thread* target;
+    thread* originator = thread::current();
+    std::function<void (thread*)> func;
+    std::atomic<bool> completed = {};
+};
+
+thread::alteration_entry::alteration_entry(thread* _target, std::function<void (thread*)> _func)
+    : target(_target)
+    , func(_func)
+{
+}
+
 class thread::reaper {
 public:
     reaper();
@@ -182,12 +196,51 @@ unsigned cpu::load()
     return runqueue.size();
 }
 
+void cpu::alteration_queue_enqueue(thread::alteration_entry* alt)
+{
+    with_lock(alteration_queue_mutex, [=] {
+        alteration_queue.push_back(alt);
+    });
+    alteration_queue_attention.store(true);
+    bringup_thread->wake();
+}
+
+void cpu::alteration_queue_process()
+{
+    decltype(alteration_queue) tmp;
+    with_lock(alteration_queue_mutex, [=, &tmp] {
+        alteration_queue_attention.store(false);
+        alteration_queue.swap(tmp);
+    });
+    for (auto alt : tmp) {
+        if (alt->target->_cpu == this) {
+            // cannot be migrated away, since we are the migration thread
+            with_lock(irq_lock, [&] {
+                alt->func(alt->target);
+                alt->completed.store(true);
+                alt->originator->wake();
+            });
+        } else {
+            auto c = alt->target->_cpu;
+            barrier();
+            c->alteration_queue_enqueue(alt);
+        }
+    }
+}
+
 void cpu::load_balance()
 {
     timer tmr(*thread::current());
     while (true) {
         tmr.set(clock::get()->time() + 100_ms);
-        thread::wait_until([&] { return tmr.expired(); });
+        bool alteration = false;
+        thread::wait_until([&] {
+            return tmr.expired()
+                   || (alteration = alteration_queue_attention.load(std::memory_order_relaxed));
+        });
+        if (alteration) {
+            alteration_queue_process();
+        }
         if (runqueue.empty()) {
             continue;
         }
@@ -240,6 +293,15 @@ void thread::yield()
     assert(t->_status.load() == status::running);
     t->_status.store(status::queued);
     t->_cpu->reschedule_from_interrupt(false);
+}
+
+void thread::alter(std::function<void (thread*)> f)
+{
+    alteration_entry alt{this, f};
+    auto c = _cpu;
+    barrier();
+    c->alteration_queue_enqueue(&alt);
+    wait_until([&] { return alt.completed.load(); });
 }
 
 thread::stack_info::stack_info()
