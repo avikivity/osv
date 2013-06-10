@@ -265,6 +265,9 @@ void cpu::load_balance()
             mig._cpu = min;
             min->incoming_wakeups[id].push_front(mig);
             min->incoming_wakeups_mask.set(id);
+            for (auto& mn : mig._migration_notifier_list) {
+                mn.migrated(min);
+            }
             // FIXME: avoid if the cpu is alive and if the priority does not
             // FIXME: warrant an interruption
             wakeup_ipi.send(min);
@@ -518,9 +521,29 @@ void thread::set_cleanup(std::function<void ()> cleanup)
     _cleanup = cleanup;
 }
 
+void thread::add_migration_notifier(migration_notifier& mn)
+{
+    alter([this, &mn](thread* t) {
+        t->_migration_notifier_list.push_back(mn);
+        mn.migrated(_cpu);
+    });
+}
+
+void thread::del_migration_notifier(migration_notifier& mn)
+{
+    alter([this, &mn](thread* t) {
+        auto& l = t->_migration_notifier_list;
+        l.erase(l.iterator_to(mn));
+    });
+}
+
 unsigned long thread::id()
 {
     return _id;
+}
+
+thread::migration_notifier::~migration_notifier()
+{
 }
 
 void preempt_disable()

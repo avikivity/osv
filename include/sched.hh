@@ -150,7 +150,11 @@ public:
         bool detached = false;
         attr(cpu *pinned_cpu = nullptr) : pinned_cpu(pinned_cpu) { }
     };
-
+    class migration_notifier : public boost::intrusive::list_base_hook<> {
+    public:
+        virtual ~migration_notifier();
+        virtual void migrated(cpu* to) = 0;
+    };
 public:
     explicit thread(std::function<void ()> func, attr attributes = attr(),
             bool main = false);
@@ -171,6 +175,8 @@ public:
     cpu* tcpu() __attribute__((no_instrument_function));
     void join();
     void set_cleanup(std::function<void ()> cleanup);
+    void add_migration_notifier(migration_notifier& mn);
+    void del_migration_notifier(migration_notifier& mn);
     unsigned long id() __attribute__((no_instrument_function)); // guaranteed unique over system lifetime
 private:
     void main();
@@ -216,12 +222,14 @@ private:
     u64 _vruntime;
     u64 _borrow;
     std::function<void ()> _cleanup;
+    boost::intrusive::list<migration_notifier> _migration_notifier_list;
     struct alteration_entry;
     friend void thread_main_c(thread* t);
     friend class wait_guard;
     friend class cpu;
     friend class timer;
     friend class thread_runtime_compare;
+    friend class migration_notifier;
     friend void ::smp_main();
     friend void ::smp_launch();
     friend void init(elf::tls_data tls, std::function<void ()> cont);
