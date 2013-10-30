@@ -270,12 +270,25 @@ cc_conn_init(struct tcpcb *tp)
 {
 	struct hc_metrics_lite metrics;
 	struct inpcb *inp = tp->t_inpcb;
+	struct ifnet *ifp;
+	struct socket *so = inp->inp_socket;
 	int rtt;
 #ifdef INET6
 	int isipv6 = ((inp->inp_vflag & INP_IPV6) != 0) ? 1 : 0;
 #endif
 
 	INP_WLOCK_ASSERT(tp->t_inpcb);
+
+	/* Add a netchannel classification to our interface */
+	/* TODO: locks? */
+	ifp = in_pcbifnet(inp);
+	if (NULL != ifp) {
+		SOCK_LOCK(so);
+		so->vj_socket = 1;
+		vj_classify_add(ifp->classifier, inp->inp_laddr, inp->inp_faddr,
+			IPPROTO_TCP, inp->inp_lport, inp->inp_fport, so);
+		SOCK_UNLOCK(so);
+	}
 
 	tcp_hc_get(&inp->inp_inc, &metrics);
 

@@ -34,6 +34,7 @@
 
 #include <assert.h>
 
+#include <vj.hh>
 #include <osv/ioctl.h>
 
 #include <bsd/porting/netport.h>
@@ -505,7 +506,7 @@ ether_ipfw_chk(struct mbuf **m0, struct ifnet *dst, int shared)
  * Process a received Ethernet packet; the packet is in the
  * mbuf chain m with the ethernet header at the front.
  */
-static void
+void
 ether_input_internal(struct ifnet *ifp, struct mbuf *m)
 {
 	struct ether_header *eh;
@@ -731,7 +732,9 @@ ether_input(struct ifnet *ifp, struct mbuf *m)
 	 */
 	KASSERT(m->M_dat.MH.MH_pkthdr.rcvif == ifp, ("%s: ifnet mismatch", __func__));
 
-	netisr_dispatch(NETISR_ETHER, m);
+	if (!vj_try_deliver(ifp->classifier, m)) {
+		netisr_dispatch(NETISR_ETHER, m);
+	}
 }
 
 /*
@@ -880,6 +883,9 @@ ether_ifattach(struct ifnet *ifp, const u_int8_t *lla)
 	if (ifp->if_baudrate == 0)
 		ifp->if_baudrate = IF_Mbps(10);		/* just a default */
 	ifp->if_broadcastaddr = etherbroadcastaddr;
+
+	/* Van Jacobson classifer for interface */
+	ifp->classifier = vj_classifier_create();
 
 	ifa = ifp->if_addr;
 	KASSERT(ifa != NULL, ("%s: no lladdr!\n", __func__));

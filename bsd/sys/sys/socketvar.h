@@ -122,6 +122,14 @@ struct socket {
 	/* FIXME: this is done for poll,
 	 * make sure there's only 1 ref to a fp */
 	struct file* fp;
+	/* Is this a van jacobson socket? */
+	int vj_socket;
+	/* The VJ ring of this socket is currently being processed */
+	int vj_processing;
+	/* This socket structure should be freed, cannot be done during processing
+	 * so we keep this flag
+	 */
+	int vj_mark_dead;
 };
 
 /*
@@ -321,6 +329,7 @@ int	soclose(struct socket *so);
 int	soconnect(struct socket *so, struct bsd_sockaddr *nam, struct thread *td);
 int	soconnect2(struct socket *so1, struct socket *so2);
 int	socow_setup(struct mbuf *m0, struct uio *uio);
+void	sodealloc(struct socket *so);
 int	socreate(int dom, struct socket **aso, int type, int proto,
 	    struct ucred *cred, struct thread *td);
 int	sodisconnect(struct socket *so);

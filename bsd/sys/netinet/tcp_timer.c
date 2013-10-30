@@ -462,6 +462,7 @@ void
 tcp_timer_rexmt(void * xtp)
 {
 	struct tcpcb *tp = xtp;
+	struct socket* so = tp->t_inpcb->inp_socket;
 	CURVNET_SET(tp->t_vnet);
 	int rexmt;
 	int headlocked;
@@ -471,6 +472,16 @@ tcp_timer_rexmt(void * xtp)
 
 	ostate = tp->t_state;
 #endif
+
+	/* Van Jacobson: the user thread may not process ACKs because no socket
+	 * API been called after send(), so we drain the ring here as well.
+	 */
+	if (so->vj_socket) {
+		int err = vj_process_ring(so);
+		if (err)
+			return;
+	}
+
 	INP_INFO_RLOCK(&V_tcbinfo);
 	inp = tp->t_inpcb;
 	/*

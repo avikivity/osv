@@ -31,7 +31,9 @@
 
 #include <sys/cdefs.h>
 
+#include <vj.hh>
 #include <osv/poll.h>
+#include <errno.h>
 
 #include <bsd/porting/netport.h>
 #include <bsd/porting/rwlock.h>
@@ -43,6 +45,7 @@
 #include <bsd/sys/sys/socket.h>
 #include <bsd/sys/sys/socketvar.h>
 #include <bsd/sys/sys/libkern.h>
+#include <bsd/sys/net/ethernet.h>
 
 /*
  * Function pointer set by the AIO routines so that the socket buffer code
@@ -62,6 +65,50 @@ static	u_long sb_efficiency = 8;	/* parameter for sbreserve() */
 
 static void	sbdrop_internal(struct sockbuf *sb, int len);
 static void	sbflush_internal(struct sockbuf *sb);
+
+/*
+ * Process any pending packets in the Van Jacobson ring for a specific socket,
+ * this is being invoked in the context of the user thread and uses the
+ * private socket api as entry points for processing
+ */
+int vj_process_ring(struct socket * so)
+{
+	struct mbuf *vj_mbuf = NULL;
+	int error = 0;
+	if (!so->vj_socket) {
+		return 0;
+	}
+
+	SOCK_LOCK(so);
+	so->vj_processing = 1;
+
+	// get packet (FIXME: locks?)
+	vj_mbuf = vj_ringbuf_pop(so->so_rcv.sb_ring);
+	while (vj_mbuf) {
+		/*
+		 * Process data packets within the current context
+		 * Directly inject packet to ethernet layer
+		 */
+		SOCK_UNLOCK(so);
+		ether_input_internal(vj_mbuf->M_dat.MH.MH_pkthdr.rcvif, vj_mbuf);
+		SOCK_LOCK(so);
+		if (so->vj_mark_dead) {
+			so->vj_processing = 0;
+			vj_mbuf = NULL;
+			sodealloc(so);
+			error = EBADF;
+		} else {
+			vj_mbuf = vj_ringbuf_pop(so->so_rcv.sb_ring);
+		}
+	}
+
+	if (error == 0) {
+		so->vj_processing = 0;
+		SOCK_UNLOCK(so);
+	}
+
+	return error;
+}
 
 /*
  * Socantsendmore indicates that no more data will be sent on the socket; it
@@ -110,6 +157,23 @@ socantrcvmore(struct socket *so)
 	SOCKBUF_LOCK(&so->so_rcv);
 	socantrcvmore_locked(so);
 	mtx_assert(SOCKBUF_MTX(&so->so_rcv), MA_NOTOWNED);
+}
+
+int
+sbwait_rcv(struct socket *so)
+{
+	/* Block normally for non vj sockets */
+	if (!so->vj_socket) {
+		return sbwait(&so->so_rcv);
+	}
+
+	/* Wait for packets arriving to the Van Jacobson ring */
+	SOCKBUF_UNLOCK(&so->so_rcv);
+	vj_wait(so->so_rcv.sb_ring);
+	int error = vj_process_ring(so);
+	assert(error == 0);
+	SOCKBUF_LOCK(&so->so_rcv);
+	return 0;
 }
 
 /*

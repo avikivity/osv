@@ -260,7 +260,6 @@ int	pru_soreceive_notsupp(struct socket *so, struct bsd_sockaddr **paddr,
 int	pru_sopoll_notsupp(struct socket *so, int events, struct ucred *cred,
 	    struct thread *td);
 __END_DECLS
-
 #endif /* _KERNEL */
 
 /*

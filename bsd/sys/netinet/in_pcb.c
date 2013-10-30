@@ -661,6 +661,32 @@ in_pcbconnect(struct inpcb *inp, struct bsd_sockaddr *nam, struct ucred *cred)
 	return (in_pcbconnect_mbuf(inp, nam, cred, NULL));
 }
 
+struct ifnet*
+in_pcbifnet(struct inpcb *inp)
+{
+	struct ifnet* ifp = NULL;
+	struct bsd_sockaddr_in *sin;
+	struct route sro;
+
+	bzero(&sro, sizeof(sro));
+
+	sin = (struct bsd_sockaddr_in *)&sro.ro_dst;
+	sin->sin_family = AF_INET;
+	sin->sin_len = sizeof(struct bsd_sockaddr_in);
+	sin->sin_addr.s_addr = inp->inp_faddr.s_addr;
+
+	// FIXME: lock on PCB?
+
+	in_rtalloc_ign(&sro, 0, inp->inp_inc.inc_fibnum);
+
+	if (sro.ro_rt != NULL) {
+		ifp = sro.ro_rt->rt_ifp;
+		RTFREE(sro.ro_rt);
+	}
+
+	return ifp;
+}
+
 /*
  * Do proper source address selection on an unbound socket in case
  * of connect. Take jails into account as well.

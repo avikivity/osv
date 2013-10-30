@@ -152,12 +152,24 @@ static void
 tcp_detach(struct socket *so, struct inpcb *inp)
 {
 	struct tcpcb *tp;
+	struct ifnet *ifp;
 
 	INP_INFO_WLOCK_ASSERT(&V_tcbinfo);
 	INP_WLOCK_ASSERT(inp);
 
 	KASSERT(so->so_pcb == inp, ("tcp_detach: so_pcb != inp"));
 	KASSERT(inp->inp_socket == so, ("tcp_detach: inp_socket != so"));
+
+	if (so->vj_socket) {
+		ifp = in_pcbifnet(inp);
+		if (NULL != ifp) {
+			SOCK_LOCK(so);
+			so->vj_socket = 0;
+			vj_classify_remove(ifp->classifier, inp->inp_laddr, inp->inp_faddr,
+				IPPROTO_TCP, inp->inp_lport, inp->inp_fport);
+			SOCK_UNLOCK(so);
+		}
+	}
 
 	tp = intotcpcb(inp);
 
@@ -1624,6 +1636,7 @@ tcp_disconnect(struct tcpcb *tp)
 {
 	struct inpcb *inp = tp->t_inpcb;
 	struct socket *so = inp->inp_socket;
+	struct ifnet *ifp = NULL;
 
 	INP_INFO_WLOCK_ASSERT(&V_tcbinfo);
 	INP_WLOCK_ASSERT(inp);

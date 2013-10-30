@@ -123,6 +123,7 @@
 #include <bsd/sys/sys/socket.h>
 #include <bsd/sys/sys/socketvar.h>
 #include <bsd/sys/net/route.h>
+#include <bsd/sys/net/ethernet.h>
 
 #include <bsd/sys/net/vnet.h>
 
@@ -277,6 +278,8 @@ soalloc(struct vnet *vnet)
 	trace_socket_soalloc(so);
 	SOCKBUF_LOCK_INIT(&so->so_snd, "so_snd");
 	SOCKBUF_LOCK_INIT(&so->so_rcv, "so_rcv");
+	so->so_rcv.sb_ring = vj_ringbuf_create();
+	so->so_rcv.sb_vj_rx_packets = 0;
 	rw_init(&so->so_snd.sb_rwlock, "so_snd_sx");
 	rw_init(&so->so_rcv.sb_rwlock, "so_rcv_sx");
 	TAILQ_INIT(&so->so_aiojobq);
@@ -292,12 +295,17 @@ soalloc(struct vnet *vnet)
  * locks, labels, etc.  All protocol state is assumed already to have been
  * torn down (and possibly never set up) by the caller.
  */
-static void
+void
 sodealloc(struct socket *so)
 {
 	trace_socket_sodealloc(so);
 	KASSERT(so->so_count == 0, ("sodealloc(): so_count %d", so->so_count));
 	KASSERT(so->so_pcb == NULL, ("sodealloc(): so_pcb != NULL"));
+
+	if (so->vj_processing) {
+		so->vj_mark_dead = 1;
+		return;
+	}
 
 	mtx_lock(&so_global_mtx);
 	so->so_gencnt = ++so_gencnt;
@@ -306,6 +314,7 @@ sodealloc(struct socket *so)
 
     so->so_rcv.sb_hiwat = 0;
     so->so_snd.sb_hiwat = 0;
+    vj_ringbuf_destroy(so->so_rcv.sb_ring);
 
 #ifdef INET
 	/* FIXME: OSv - should this be supported? */
@@ -1244,7 +1253,6 @@ sockbuf_pushsync(struct sockbuf *sb, struct mbuf *nextrecord)
                 sb->sb_lastrecord = sb->sb_mb;
 }
 
-
 /*
  * Implement receive operations on a socket.  We depend on the way that
  * records are added to the sockbuf by sbappend.  In particular, each record
@@ -1274,6 +1282,8 @@ soreceive_generic(struct socket *so, struct bsd_sockaddr **psa, struct uio *uio,
 	ssize_t orig_resid = uio->uio_resid;
 
 	trace_socket_soreceive_generic(so);
+	error = vj_process_ring(so);
+	assert(error == 0);
 
 	mp = mp0;
 	if (psa != NULL)
@@ -1354,7 +1364,7 @@ restart:
 		}
 		SBLASTRECORDCHK(&so->so_rcv);
 		SBLASTMBUFCHK(&so->so_rcv);
-		error = sbwait(&so->so_rcv);
+		error = sbwait_rcv(so);
 		SOCKBUF_UNLOCK(&so->so_rcv);
 		if (error)
 			goto release;
@@ -1643,7 +1653,7 @@ dontblock:
 			 * the protocol. Skip blocking in this case.
 			 */
 			if (so->so_rcv.sb_mb == NULL) {
-				error = sbwait(&so->so_rcv);
+				error = sbwait_rcv(so);
 				if (error) {
 					SOCKBUF_UNLOCK(&so->so_rcv);
 					goto release;
@@ -2724,6 +2734,8 @@ sopoll_generic(struct socket *so, int events, struct ucred *active_cred,
 	int revents = 0;
 
 	trace_socket_sopoll_generic(so);
+	int error = vj_process_ring(so);
+	assert(error == 0);
 
 	SOCKBUF_LOCK(&so->so_snd);
 	SOCKBUF_LOCK(&so->so_rcv);

@@ -12,6 +12,7 @@ __BEGIN_DECLS
 void ether_init(void *arg);
 void* ether_alloc(u_char type, struct ifnet *ifp);
 void ether_free(void *com, u_char type);
+void ether_input_internal(struct ifnet *ifp, struct mbuf *m);
 __END_DECLS
 
 /*

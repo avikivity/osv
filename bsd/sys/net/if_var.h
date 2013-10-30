@@ -72,7 +72,11 @@ struct	carp_if;
 struct  ifvlantrunk;
 struct	route;
 struct	vnet;
+struct	sockbuf;
+struct	in_addr;
 #endif
+
+#include <vj.hh>
 
 #include <bsd/sys/sys/queue.h>		/* get TAILQ macros */
 
@@ -205,6 +209,8 @@ struct ifnet {
 	char	if_cspare[3];
 	int	if_ispare[4];
 	void	*if_pspare[8];		/* 1 netmap, 7 TDB */
+
+	vj_classifier classifier;
 };
 
 typedef void if_init_f_t(void *);

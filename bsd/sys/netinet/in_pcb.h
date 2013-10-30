@@ -646,6 +646,7 @@ struct inpcb *
 struct inpcb *
 	in_pcblookup_mbuf(struct inpcbinfo *, struct in_addr, u_int,
 	    struct in_addr, u_int, int, struct ifnet *, struct mbuf *);
+struct ifnet* in_pcbifnet(struct inpcb *inp);
 void
 in_pcbnotifyall(struct inpcbinfo *pcbinfo, struct in_addr faddr, int errval,
     struct inpcb *(*notify)(struct inpcb *, int));

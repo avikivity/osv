@@ -35,9 +35,12 @@
 
 #include <sys/cdefs.h>
 
+#include <vj.hh>
+
 #include <bsd/porting/netport.h>
 #include <bsd/porting/sync_stub.h>
 #include <bsd/porting/rwlock.h>
+
 
 #define	SB_MAX		(2*1024*1024)	/* default for max chars in sockbuf */
 
@@ -102,6 +105,8 @@ struct	sockbuf {
 	short	sb_flags;	/* (c/d) flags, see below */
 	int	(*sb_upcall)(struct socket *, void *, int); /* (c/d) */
 	void	*sb_upcallarg;	/* (c/d) */
+	vj_ringbuf sb_ring; /* a ringbuffer used by the rcv sockbuf */
+	int sb_vj_rx_packets; /* used to count non data packets when we make a connection */
 };
 
 #ifdef _KERNEL
@@ -156,6 +161,8 @@ int	sbreserve_locked(struct sockbuf *sb, u_long cc, struct socket *so,
 struct mbuf *
 	sbsndptr(struct sockbuf *sb, u_int off, u_int len, u_int *moff);
 void	sbtoxsockbuf(struct sockbuf *sb, struct xsockbuf *xsb);
+int	vj_process_ring(struct socket *so);
+int	sbwait_rcv(struct socket *so);
 int	sbwait(struct sockbuf *sb);
 int	sblock(struct sockbuf *sb, int flags);
 void	sbunlock(struct sockbuf *sb);

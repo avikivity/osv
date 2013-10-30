@@ -1,0 +1,26 @@
+--=[ VJ's Architecture in OS-v ]=--
+
+RX
+==
+
+RX packets are classified and queued in a lockless ring that is maintained 
+per each rx sockbuf, classification code process IPv4/TCP packets and hash
+a 4 element tuple, composed of src ip, dst ip, src port, dst port so they'll
+be delivered to the correct ring buffer.
+
+Classifications are added and removed using message passing, we reused mbufs
+and added a new control type message to add a new classification or remove
+an existing one. On socket creation, a control message is queued. This allows
+the classification code to implemeted without any locks.
+
+Basically, if a packet didn't pass classification, it'll be processed using
+the pre-VJ route, this is true for SYN packets and for non TCP traffic.
+
+
+TX
+==
+
+On the TX side we maintain a per-interface and per-cpu lockless ring for 
+queuing packets, this help us achieve TX packet queueing that doesn't
+use any locks.
+
