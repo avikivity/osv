@@ -256,7 +256,7 @@ soreserve(struct socket *so, u_long sndcc, u_long rcvcc)
 		so->so_rcv.sb_lowat = 1;
 	if (so->so_snd.sb_lowat == 0)
 		so->so_snd.sb_lowat = MCLBYTES;
-	if (so->so_snd.sb_lowat > so->so_snd.sb_hiwat)
+	if ((u_int)so->so_snd.sb_lowat > so->so_snd.sb_hiwat)
 		so->so_snd.sb_lowat = so->so_snd.sb_hiwat;
 	SOCKBUF_UNLOCK(&so->so_rcv);
 	SOCKBUF_UNLOCK(&so->so_snd);
@@ -310,7 +310,7 @@ sbreserve_locked(struct sockbuf *sb, u_long cc, struct socket *so,
 	sb->sb_hiwat = cc;
 
     sb->sb_mbmax = bsd_min(cc * sb_efficiency, sb_max);
-    if (sb->sb_lowat > sb->sb_hiwat)
+    if ((u_int)sb->sb_lowat > sb->sb_hiwat)
         sb->sb_lowat = sb->sb_hiwat;
     return (1);
 }
@@ -939,7 +939,7 @@ sbsndptr(struct sockbuf *sb, u_int off, u_int len, u_int *moff)
 
 	/* Advance by len to be as close as possible for the next transmit. */
 	for (off = off - sb->sb_sndptroff + len - 1;
-	     off > 0 && m != NULL && off >= m->m_hdr.mh_len;
+	     off > 0 && m != NULL && off >= (u_int)m->m_hdr.mh_len;
 	     m = m->m_hdr.mh_next) {
 		sb->sb_sndptroff += m->m_hdr.mh_len;
 		off -= m->m_hdr.mh_len;
@@ -1006,7 +1006,7 @@ sbcreatecontrol(caddr_t p, int size, int type, int level)
 		return ((struct mbuf *) NULL);
 	cp = mtod(m, struct cmsghdr *);
 	m->m_hdr.mh_len = 0;
-	KASSERT(CMSG_SPACE((u_int)size) <= M_TRAILINGSPACE(m),
+	KASSERT(CMSG_SPACE((u_int)size) <= (u_int)M_TRAILINGSPACE(m),
 	    ("sbcreatecontrol: short mbuf"));
 	if (p != NULL)
 		(void)memcpy(CMSG_DATA(cp), p, size);

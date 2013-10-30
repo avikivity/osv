@@ -239,7 +239,7 @@ soalloc(struct vnet *vnet)
 {
 	struct socket *so;
 
-	so = uma_zalloc(socket_zone, M_NOWAIT | M_ZERO);
+	so = (struct socket *)uma_zalloc(socket_zone, M_NOWAIT | M_ZERO);
 	if (so == NULL)
 		return (NULL);
 	uipc_d("soalloc() so=%" PRIx64, (uint64_t)so);
@@ -1017,7 +1017,7 @@ restart:
 		if (flags & MSG_OOB)
 			space += 1024;
 		if ((atomic && resid > so->so_snd.sb_hiwat) ||
-		    clen > so->so_snd.sb_hiwat) {
+		    (u_int)clen > so->so_snd.sb_hiwat) {
 			SOCKBUF_UNLOCK(&so->so_snd);
 			error = EMSGSIZE;
 			goto release;
@@ -1256,7 +1256,7 @@ restart:
 	 */
 	if (m == NULL || (((flags & MSG_DONTWAIT) == 0 &&
 	    so->so_rcv.sb_cc < uio->uio_resid) &&
-	    so->so_rcv.sb_cc < so->so_rcv.sb_lowat &&
+	    so->so_rcv.sb_cc < (u_int)so->so_rcv.sb_lowat &&
 	    m->m_hdr.mh_nextpkt == NULL && (pr->pr_flags & PR_ATOMIC) == 0)) {
 		KASSERT(m != NULL || !so->so_rcv.sb_cc,
 		    ("receive: m == %p so->so_rcv.sb_cc == %u",
@@ -1555,7 +1555,7 @@ dontblock:
 				}
 			} else {
 				offset += len;
-				if (offset == so->so_oobmark)
+				if ((u_int)offset == so->so_oobmark)
 					break;
 			}
 		}
@@ -1734,7 +1734,7 @@ restart:
 	if (sb->sb_cc > 0 && !(flags & MSG_WAITALL) &&
 	    ((sb->sb_flags & SS_NBIO) ||
 	     (flags & (MSG_DONTWAIT|MSG_NBIO)) ||
-	     sb->sb_cc >= sb->sb_lowat ||
+	     sb->sb_cc >= (u_int)sb->sb_lowat ||
 	     sb->sb_cc >= uio->uio_resid ||
 	     sb->sb_cc >= sb->sb_hiwat) ) {
 		goto deliver;
@@ -1742,7 +1742,7 @@ restart:
 
 	/* On MSG_WAITALL we must wait until all data or error arrives. */
 	if ((flags & MSG_WAITALL) &&
-	    (sb->sb_cc >= uio->uio_resid || sb->sb_cc >= sb->sb_lowat))
+	    (sb->sb_cc >= uio->uio_resid || sb->sb_cc >= (u_int)sb->sb_lowat))
 		goto deliver;
 
 	/*
@@ -2234,7 +2234,7 @@ sosetopt(struct socket *so, struct sockopt *sopt)
 			if (error)
 				goto bad;
 
-			if (optval < 0 || optval >= rt_numfibs) {
+			if (optval < 0 || (u_int)optval >= rt_numfibs) {
 				error = EINVAL;
 				goto bad;
 			}
@@ -2292,14 +2292,14 @@ sosetopt(struct socket *so, struct sockopt *sopt)
 			case SO_SNDLOWAT:
 				SOCKBUF_LOCK(&so->so_snd);
 				so->so_snd.sb_lowat =
-				    (optval > so->so_snd.sb_hiwat) ?
+				    ((u_int)optval > so->so_snd.sb_hiwat) ?
 				    so->so_snd.sb_hiwat : optval;
 				SOCKBUF_UNLOCK(&so->so_snd);
 				break;
 			case SO_RCVLOWAT:
 				SOCKBUF_LOCK(&so->so_rcv);
 				so->so_rcv.sb_lowat =
-				    (optval > so->so_rcv.sb_hiwat) ?
+				    ((u_int)optval > so->so_rcv.sb_hiwat) ?
 				    so->so_rcv.sb_hiwat : optval;
 				SOCKBUF_UNLOCK(&so->so_rcv);
 				break;
@@ -2515,7 +2515,7 @@ soopt_getm(struct sockopt *sopt, struct mbuf **mp)
 	MGET(m, sopt->sopt_td ? M_WAIT : M_DONTWAIT, MT_DATA);
 	if (m == NULL)
 		return ENOBUFS;
-	if (sopt_size > MLEN) {
+	if ((u_int)sopt_size > MLEN) {
 		MCLGET(m, sopt->sopt_td ? M_WAIT : M_DONTWAIT);
 		if ((m->m_hdr.mh_flags & M_EXT) == 0) {
 			m_free(m);
@@ -2523,7 +2523,7 @@ soopt_getm(struct sockopt *sopt, struct mbuf **mp)
 		}
 		m->m_hdr.mh_len = bsd_min(MCLBYTES, sopt_size);
 	} else {
-		m->m_hdr.mh_len = bsd_min(MLEN, sopt_size);
+		m->m_hdr.mh_len = bsd_min((int)MLEN, sopt_size);
 	}
 	sopt_size -= m->m_hdr.mh_len;
 	*mp = m;
@@ -2535,7 +2535,7 @@ soopt_getm(struct sockopt *sopt, struct mbuf **mp)
 			m_freem(*mp);
 			return ENOBUFS;
 		}
-		if (sopt_size > MLEN) {
+		if ((u_int)sopt_size > MLEN) {
 			MCLGET(m, sopt->sopt_td != NULL ? M_WAIT :
 			    M_DONTWAIT);
 			if ((m->m_hdr.mh_flags & M_EXT) == 0) {
@@ -2545,7 +2545,7 @@ soopt_getm(struct sockopt *sopt, struct mbuf **mp)
 			}
 			m->m_hdr.mh_len = bsd_min(MCLBYTES, sopt_size);
 		} else {
-			m->m_hdr.mh_len = bsd_min(MLEN, sopt_size);
+			m->m_hdr.mh_len = bsd_min((int)MLEN, sopt_size);
 		}
 		sopt_size -= m->m_hdr.mh_len;
 		m_prev->m_hdr.mh_next = m;
@@ -2562,7 +2562,7 @@ soopt_mcopyin(struct sockopt *sopt, struct mbuf *m)
 
 	if (sopt->sopt_val == NULL)
 		return (0);
-	while (m != NULL && sopt->sopt_valsize >= m->m_hdr.mh_len) {
+	while (m != NULL && sopt->sopt_valsize >= (u_int)m->m_hdr.mh_len) {
 		if (sopt->sopt_td != NULL) {
 			int error;
 
@@ -2592,7 +2592,7 @@ soopt_mcopyout(struct sockopt *sopt, struct mbuf *m)
 
 	if (sopt->sopt_val == NULL)
 		return (0);
-	while (m != NULL && sopt->sopt_valsize >= m->m_hdr.mh_len) {
+	while (m != NULL && sopt->sopt_valsize >= (u_int)m->m_hdr.mh_len) {
 		if (sopt->sopt_td != NULL) {
 			int error;
 
@@ -2987,7 +2987,7 @@ sodupbsd_sockaddr(const struct bsd_sockaddr *sa, int mflags)
 {
 	struct bsd_sockaddr *sa2;
 
-	sa2 = malloc(sa->sa_len);
+	sa2 = (struct bsd_sockaddr *)malloc(sa->sa_len);
 	if (sa2)
 		bcopy(sa, sa2, sa->sa_len);
 	return sa2;
@@ -3062,7 +3062,7 @@ sotoxsocket(struct socket *so, struct xsocket *xso)
 	xso->so_options = so->so_options;
 	xso->so_linger = so->so_linger;
 	xso->so_state = so->so_state;
-	xso->so_pcb = so->so_pcb;
+	xso->so_pcb = (caddr_t)so->so_pcb;
 	xso->xso_protocol = so->so_proto->pr_protocol;
 	xso->xso_family = so->so_proto->pr_domain->dom_family;
 	xso->so_qlen = so->so_qlen;
