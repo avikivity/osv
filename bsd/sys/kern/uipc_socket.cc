@@ -103,6 +103,7 @@
 #include <sys/cdefs.h>
 #include <stddef.h>
 
+#include <osv/trace.hh>
 #include <osv/poll.h>
 #include <osv/debug.h>
 #include <inttypes.h>
@@ -125,7 +126,38 @@
 
 #include <bsd/sys/net/vnet.h>
 
-#define uipc_d(...) tprintf_d("uipc_socket", __VA_ARGS__)
+TRACEPOINT(trace_socket_soalloc, "so=%p", socket*);
+TRACEPOINT(trace_socket_sodealloc, "so=%p", socket*);
+TRACEPOINT(trace_socket_socreate, "domain=%d, type=%d, prot=%d", int, int, int);
+TRACEPOINT(trace_socket_sonewconn, "so(head)=%p", socket*);
+TRACEPOINT(trace_socket_sobind, "so=%p", socket*);
+TRACEPOINT(trace_socket_solisten, "so=%p, backlog=%d", socket*, int);
+TRACEPOINT(trace_socket_sofree, "so=%p", socket*);
+TRACEPOINT(trace_socket_soclose, "so=%p", socket*);
+TRACEPOINT(trace_socket_soabort, "so=%p", socket*);
+TRACEPOINT(trace_socket_soaccept, "so=%p", socket*);
+TRACEPOINT(trace_socket_soconnect, "so=%p", socket*);
+TRACEPOINT(trace_socket_soconnect2, "so1=%p, so2=%p", socket*, socket*);
+TRACEPOINT(trace_socket_sodisconnect, "so=%p, so_state=%d", socket*, short);
+TRACEPOINT(trace_socket_sosend_dgram, "so=%p", socket*);
+TRACEPOINT(trace_socket_sosend_generic, "so=%p", socket*);
+TRACEPOINT(trace_socket_sosend, "so=%p", socket*);
+TRACEPOINT(trace_socket_soreceive_rcvoob, "so=%p", socket*);
+TRACEPOINT(trace_socket_soreceive_generic, "so=%p", socket*);
+TRACEPOINT(trace_socket_soreceive_stream, "so=%p", socket*);
+TRACEPOINT(trace_socket_soreceive_dgram, "so=%p", socket*);
+TRACEPOINT(trace_socket_soreceive, "so=%p", socket*);
+TRACEPOINT(trace_socket_soshutdown, "so=%p", socket*);
+TRACEPOINT(trace_socket_sorflush, "so=%p", socket*);
+TRACEPOINT(trace_socket_sosetopt, "so=%p", socket*);
+TRACEPOINT(trace_socket_sogetopt, "so=%p", socket*);
+TRACEPOINT(trace_socket_sohasoutofband, "so=%p", socket*);
+TRACEPOINT(trace_socket_sopoll, "so=%p", socket*);
+TRACEPOINT(trace_socket_sopoll_generic, "so=%p", socket*);
+TRACEPOINT(trace_socket_soisconnecting, "so=%p", socket*);
+TRACEPOINT(trace_socket_soisconnected, "so=%p", socket*);
+TRACEPOINT(trace_socket_soisdisconnecting, "so=%p", socket*);
+TRACEPOINT(trace_socket_soisdisconnected, "so=%p", socket*);
 
 static int	soreceive_rcvoob(struct socket *so, struct uio *uio,
 		    int flags);
@@ -242,7 +274,7 @@ soalloc(struct vnet *vnet)
 	so = (struct socket *)uma_zalloc(socket_zone, M_NOWAIT | M_ZERO);
 	if (so == NULL)
 		return (NULL);
-	uipc_d("soalloc() so=%" PRIx64, (uint64_t)so);
+	trace_socket_soalloc(so);
 	SOCKBUF_LOCK_INIT(&so->so_snd, "so_snd");
 	SOCKBUF_LOCK_INIT(&so->so_rcv, "so_rcv");
 	rw_init(&so->so_snd.sb_rwlock, "so_snd_sx");
@@ -263,7 +295,7 @@ soalloc(struct vnet *vnet)
 static void
 sodealloc(struct socket *so)
 {
-	uipc_d("sodealloc() so=%" PRIx64, (uint64_t)so);
+	trace_socket_sodealloc(so);
 	KASSERT(so->so_count == 0, ("sodealloc(): so_count %d", so->so_count));
 	KASSERT(so->so_pcb == NULL, ("sodealloc(): so_pcb != NULL"));
 
@@ -301,6 +333,8 @@ socreate(int dom, struct socket **aso, int type, int proto,
 	struct protosw *prp;
 	struct socket *so;
 	int error;
+
+	trace_socket_socreate(dom, type, proto);
 
 	if (proto)
 		prp = pffindproto(dom, proto, type);
@@ -367,7 +401,7 @@ sonewconn(struct socket *head, int connstatus)
 	struct socket *so;
 	int over;
 
-	uipc_d("sonewconn() head=%" PRIx64, (uint64_t)head);
+	trace_socket_sonewconn(head);
 
 	ACCEPT_LOCK();
 	over = (head->so_qlen > 3 * head->so_qlimit / 2);
@@ -446,6 +480,7 @@ sobind(struct socket *so, struct bsd_sockaddr *nam, struct thread *td)
 {
 	int error;
 
+	trace_socket_sobind(so);
 	CURVNET_SET(so->so_vnet);
 	error = (*so->so_proto->pr_usrreqs->pru_bind)(so, nam, td);
 	CURVNET_RESTORE();
@@ -469,6 +504,7 @@ solisten(struct socket *so, int backlog, struct thread *td)
 {
 	int error;
 
+	trace_socket_solisten(so, backlog);
 	CURVNET_SET(so->so_vnet);
 	error = (*so->so_proto->pr_usrreqs->pru_listen)(so, backlog, td);
 	CURVNET_RESTORE();
@@ -522,7 +558,7 @@ solisten_proto(struct socket *so, int backlog)
 void
 sofree(struct socket *so)
 {
-	uipc_d("sofree() so=%" PRIx64, (uint64_t)so);
+	trace_socket_sofree(so);
 	struct protosw *pr = so->so_proto;
 	struct socket *head;
 
@@ -601,7 +637,7 @@ int
 soclose(struct socket *so)
 {
 	int error = 0;
-	uipc_d("soclose() so=%" PRIx64, (uint64_t)so);
+	trace_socket_soclose(so);
 	KASSERT(!(so->so_state & SS_NOFDREF), ("soclose: SS_NOFDREF on enter"));
 
 	CURVNET_SET(so->so_vnet);
@@ -680,7 +716,8 @@ drop:
 void
 soabort(struct socket *so)
 {
-	uipc_d("soabort() so=%" PRIx64, (uint64_t)so);
+	trace_socket_soabort(so);
+
 	/*
 	 * In as much as is possible, assert that no references to this
 	 * socket are held.  This is not quite the same as asserting that the
@@ -706,6 +743,8 @@ soaccept(struct socket *so, struct bsd_sockaddr **nam)
 {
 	int error;
 
+	trace_socket_soaccept(so);
+
 	SOCK_LOCK(so);
 	KASSERT((so->so_state & SS_NOFDREF) != 0, ("soaccept: !NOFDREF"));
 	so->so_state &= ~SS_NOFDREF;
@@ -721,6 +760,8 @@ int
 soconnect(struct socket *so, struct bsd_sockaddr *nam, struct thread *td)
 {
 	int error;
+
+	trace_socket_soconnect(so);
 
 	if (so->so_options & SO_ACCEPTCONN)
 		return (EOPNOTSUPP);
@@ -753,6 +794,7 @@ soconnect2(struct socket *so1, struct socket *so2)
 {
 	int error;
 
+	trace_socket_soconnect2(so1, so2);
 	CURVNET_SET(so1->so_vnet);
 	error = (*so1->so_proto->pr_usrreqs->pru_connect2)(so1, so2);
 	CURVNET_RESTORE();
@@ -763,6 +805,7 @@ int
 sodisconnect(struct socket *so)
 {
 	int error;
+	trace_socket_sodisconnect(so, so->so_state);
 
 	if ((so->so_state & SS_ISCONNECTED) == 0)
 		return (ENOTCONN);
@@ -782,6 +825,8 @@ sosend_dgram(struct socket *so, struct bsd_sockaddr *addr, struct uio *uio,
 	long space;
 	ssize_t resid;
 	int clen = 0, error, dontroute;
+
+	trace_socket_sosend_dgram(so);
 
 	KASSERT(so->so_type == SOCK_DGRAM, ("sodgram_send: !SOCK_DGRAM"));
 	KASSERT(so->so_proto->pr_flags & PR_ATOMIC,
@@ -945,6 +990,8 @@ sosend_generic(struct socket *so, struct bsd_sockaddr *addr, struct uio *uio,
 	ssize_t resid;
 	int clen = 0, error, dontroute;
 	int atomic = sosendallatonce(so) || top;
+
+	trace_socket_sosend_generic(so);
 
 	if (uio != NULL)
 		resid = uio->uio_resid;
@@ -1118,6 +1165,8 @@ sosend(struct socket *so, struct bsd_sockaddr *addr, struct uio *uio,
 {
 	int error;
 
+	trace_socket_sosend(so);
+
 	CURVNET_SET(so->so_vnet);
 	error = so->so_proto->pr_usrreqs->pru_sosend(so, addr, uio, top,
 	    control, flags, td);
@@ -1139,6 +1188,8 @@ soreceive_rcvoob(struct socket *so, struct uio *uio, int flags)
 	struct protosw *pr = so->so_proto;
 	struct mbuf *m;
 	int error;
+
+	trace_socket_soreceive_rcvoob(so);
 
 	KASSERT(flags & MSG_OOB, ("soreceive_rcvoob: (flags & MSG_OOB) == 0"));
 	VNET_SO_ASSERT(so);
@@ -1221,6 +1272,8 @@ soreceive_generic(struct socket *so, struct bsd_sockaddr **psa, struct uio *uio,
 	struct mbuf *nextrecord;
 	int moff, type = 0;
 	ssize_t orig_resid = uio->uio_resid;
+
+	trace_socket_soreceive_generic(so);
 
 	mp = mp0;
 	if (psa != NULL)
@@ -1663,6 +1716,8 @@ soreceive_stream(struct socket *so, struct bsd_sockaddr **psa, struct uio *uio,
 	struct sockbuf *sb;
 	struct mbuf *m, *n = NULL;
 
+	trace_socket_soreceive_stream(so);
+
 	/* We only do stream sockets. */
 	if (so->so_type != SOCK_STREAM)
 		return (EINVAL);
@@ -1857,6 +1912,8 @@ soreceive_dgram(struct socket *so, struct bsd_sockaddr **psa, struct uio *uio,
 	struct protosw *pr = so->so_proto;
 	struct mbuf *nextrecord;
 
+	trace_socket_soreceive_dgram(so);
+
 	if (psa != NULL)
 		*psa = NULL;
 	if (controlp != NULL)
@@ -2031,6 +2088,8 @@ soreceive(struct socket *so, struct bsd_sockaddr **psa, struct uio *uio,
 {
 	int error;
 
+	trace_socket_soreceive(so);
+
 	CURVNET_SET(so->so_vnet);
 	error = (so->so_proto->pr_usrreqs->pru_soreceive(so, psa, uio, mp0,
 	    controlp, flagsp));
@@ -2043,6 +2102,8 @@ soshutdown(struct socket *so, int how)
 {
 	struct protosw *pr = so->so_proto;
 	int error;
+
+	trace_socket_soshutdown(so);
 
 	if (!(how == SHUT_RD || how == SHUT_WR || how == SHUT_RDWR))
 		return (EINVAL);
@@ -2068,6 +2129,8 @@ sorflush(struct socket *so)
 	struct sockbuf *sb = &so->so_rcv;
 	struct protosw *pr = so->so_proto;
 	struct sockbuf asb;
+
+	trace_socket_sorflush(so);
 
 	VNET_SO_ASSERT(so);
 
@@ -2167,6 +2230,8 @@ sosetopt(struct socket *so, struct sockopt *sopt)
 	struct	timeval tv;
 	u_long  val;
 	uint32_t val32;
+
+	trace_socket_sosetopt(so);
 
 	CURVNET_SET(so->so_vnet);
 	error = 0;
@@ -2391,6 +2456,8 @@ sogetopt(struct socket *so, struct sockopt *sopt)
 	int	error, optval;
 	struct	linger l;
 	struct	timeval tv;
+
+	trace_socket_sogetopt(so);
 
 	CURVNET_SET(so->so_vnet);
 	error = 0;
@@ -2625,6 +2692,8 @@ soopt_mcopyout(struct sockopt *sopt, struct mbuf *m)
 void
 sohasoutofband(struct socket *so)
 {
+	trace_socket_sohasoutofband(so);
+
 /* FIXME: OSv - handle OOB data */
 #if 0
 	if (so->so_sigio != NULL)
@@ -2639,6 +2708,7 @@ sopoll(struct socket *so, int events, struct ucred *active_cred,
     struct thread *td)
 {
 
+	trace_socket_sopoll(so);
 	/*
 	 * We do not need to set or assert curvnet as long as everyone uses
 	 * sopoll_generic().
@@ -2652,6 +2722,8 @@ sopoll_generic(struct socket *so, int events, struct ucred *active_cred,
     struct thread *td)
 {
 	int revents = 0;
+
+	trace_socket_sopoll_generic(so);
 
 	SOCKBUF_LOCK(&so->so_snd);
 	SOCKBUF_LOCK(&so->so_rcv);
@@ -2887,6 +2959,7 @@ void
 soisconnecting(struct socket *so)
 {
 
+	trace_socket_soisconnecting(so);
 	SOCK_LOCK(so);
 	so->so_state &= ~(SS_ISCONNECTED|SS_ISDISCONNECTING);
 	so->so_state |= SS_ISCONNECTING;
@@ -2899,6 +2972,7 @@ soisconnected(struct socket *so)
 	struct socket *head;	
 	int ret;
 
+	trace_socket_soisconnected(so);
 restart:
 	ACCEPT_LOCK();
 	SOCK_LOCK(so);
@@ -2944,6 +3018,7 @@ void
 soisdisconnecting(struct socket *so)
 {
 
+	trace_socket_soisdisconnecting(so);
 	/*
 	 * Note: This code assumes that SOCK_LOCK(so) and
 	 * SOCKBUF_LOCK(&so->so_rcv) are the same.
@@ -2963,6 +3038,7 @@ void
 soisdisconnected(struct socket *so)
 {
 
+	trace_socket_soisdisconnected(so);
 	/*
 	 * Note: This code assumes that SOCK_LOCK(so) and
 	 * SOCKBUF_LOCK(&so->so_rcv) are the same.
