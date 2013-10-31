@@ -66,6 +66,29 @@ private:
     T _ring[MaxSize];
 };
 
+
+template<class T, unsigned MaxSize>
+class ring_spsc_waiter: public ring_spsc<T,MaxSize> {
+public:
+    ring_spsc_waiter(): ring_spsc<T,MaxSize>(), _waiter(nullptr) { }
+
+    void wait_for_items() {
+        _waiter.store(sched::thread::current(), std::memory_order_relaxed);
+        sched::thread::wait_until([&] { return (this->size() > 0); });
+        _waiter.store(nullptr, std::memory_order_relaxed);
+    }
+
+    void wake_consumer() {
+        sched::thread* t = _waiter.load(std::memory_order_relaxed);
+        if (t) {
+            t->wake();
+        }
+    }
+
+private:
+    std::atomic<sched::thread*> _waiter;
+};
+
 //
 // mpsc ring of fixed size
 //
