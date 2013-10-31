@@ -108,6 +108,9 @@ struct pollfd {
 /* General FreeBSD extension (currently only supported for sockets): */
 #define POLLINIGNEOF    0x2000      /* like POLLIN, except ignore EOF */
 
+/* Van Jacobson: tell the polling thread to process packets and rescan events */
+#define POLL_VJ         0x8000
+
 #endif
 
 /*
