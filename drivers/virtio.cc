@@ -199,10 +199,10 @@ vring* virtio_driver::get_virt_queue(unsigned idx)
     return (_queues[idx]);
 }
 
-void virtio_driver::wait_for_queue(vring* queue, bool (vring::*pred)() const)
+void virtio_driver::wait_for_queue(vring* queue, bool (vring::*pred)() const, external_event& ext)
 {
-    sched::thread::wait_until([queue,pred] {
-        bool have_elements = (queue->*pred)();
+    sched::thread::wait_until([queue,pred,&ext] {
+        bool have_elements = (queue->*pred)() || ext.fired();
         if (!have_elements) {
             queue->enable_interrupts();
 
@@ -210,7 +210,7 @@ void virtio_driver::wait_for_queue(vring* queue, bool (vring::*pred)() const)
             // we enable interrupts to avoid a race where a packet
             // may have been delivered between queue->used_ring_not_empty()
             // and queue->enable_interrupts() above
-            have_elements = (queue->*pred)();
+            have_elements = (queue->*pred)() || ext.fired();
             if (have_elements) {
                 queue->disable_interrupts();
             }

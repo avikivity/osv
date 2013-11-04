@@ -104,6 +104,8 @@ enum {
 const unsigned max_virtqueues_nr = 64;
 
 class virtio_driver : public hw_driver {
+private:
+    struct external_event;
 public:
     explicit virtio_driver(pci::device& dev);
     virtual ~virtio_driver();
@@ -123,6 +125,11 @@ public:
 
     // block the calling thread until the queue has some used elements in it.
     void wait_for_queue(vring* queue, bool (vring::*pred)() const);
+    void wait_for_queue(vring* queue, bool (vring::*pred)() const, external_event& ext);
+    // block the calling thread until the queue fulfills some condition,
+    // or some external event happens
+    template <typename func>
+    void wait_for_queue_plus(vring* queue, bool (vring::*pred)() const, func external);
 
     // guest/host features physical access
     u32 get_device_features(void);
@@ -174,6 +181,14 @@ protected:
     pci::bar *_bar1;
     bool _cap_indirect_buf;
     bool _cap_event_idx = false;
+private:
+    struct external_event {
+        virtual ~external_event() {}
+        virtual bool fired() = 0;
+    };
+    struct no_external_event : external_event {
+        virtual bool fired() { return false; }
+    };
 };
 
 template <typename T, u16 ID>
@@ -185,6 +200,26 @@ hw_driver* probe(hw_device* dev)
         }
     }
     return nullptr;
+}
+
+inline
+void virtio_driver::wait_for_queue(vring* queue, bool (vring::*pred)() const)
+{
+    no_external_event none;
+    wait_for_queue(queue, pred, none);
+}
+
+
+template <typename func>
+inline
+void virtio_driver::wait_for_queue_plus(vring* queue, bool (vring::*pred)() const, func external)
+{
+    struct tmp : external_event {
+        tmp(func f) : f(f) {}
+        virtual bool fired() { return f(); }
+        func f;
+    };
+    return wait_for_queue(queue, pred, tmp(external));
 }
 
 }
