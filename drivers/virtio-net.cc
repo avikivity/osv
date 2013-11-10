@@ -169,7 +169,6 @@ namespace virtio {
 
         //register the 2 irq callback for the net
         sched::thread* rx = new sched::thread([this] { this->receiver(); });
-        rx->start();
 
         //initialize the BSD interface _if
         _ifn = if_alloc(IFT_ETHER);
@@ -209,6 +208,9 @@ namespace virtio {
         _ifn->if_capenable = _ifn->if_capabilities;
 
         ether_ifattach(_ifn, _config.mac);
+
+        rx->start();
+
         _msi.easy_register({
             { 0, [&] { _rx_queue->disable_interrupts(); }, rx },
             { 1, [&] { _tx_queue->disable_interrupts(); }, nullptr }
