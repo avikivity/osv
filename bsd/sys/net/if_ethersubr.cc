@@ -34,6 +34,7 @@
 
 #include <assert.h>
 
+#include <osv/initialize.hh>
 #include <vj.hh>
 #include <osv/ioctl.h>
 
@@ -706,13 +707,13 @@ ether_nh_input(struct mbuf *m)
 	ether_input_internal(m->M_dat.MH.MH_pkthdr.rcvif, m);
 }
 
-static struct netisr_handler	ether_nh = {
-	.nh_name = "ether",
-	.nh_handler = ether_nh_input,
-	.nh_proto = NETISR_ETHER,
-	.nh_policy = NETISR_POLICY_SOURCE,
-	.nh_dispatch = NETISR_DISPATCH_DIRECT,
-};
+static struct netisr_handler ether_nh = initialize_with([] (netisr_handler& x) {
+	x.nh_name = "ether";
+	x.nh_handler = ether_nh_input;
+	x.nh_proto = NETISR_ETHER;
+	x.nh_policy = NETISR_POLICY_SOURCE;
+	x.nh_dispatch = NETISR_DISPATCH_DIRECT;
+});
 
 void ether_init(void *arg)
 {
@@ -1090,7 +1091,7 @@ ether_resolvemulti(struct ifnet *ifp, struct bsd_sockaddr **llsa,
 		sin = (struct bsd_sockaddr_in *)sa;
 		if (!IN_MULTICAST(ntohl(sin->sin_addr.s_addr)))
 			return EADDRNOTAVAIL;
-		sdl = malloc(sizeof *sdl);
+		sdl = new bsd_sockaddr_dl;
 		if (sdl == NULL)
 			return ENOMEM;
 		bzero(sdl, sizeof *sdl);
@@ -1148,7 +1149,7 @@ ether_alloc(u_char type, struct ifnet *ifp)
 {
 	struct arpcom	*ac;
 	
-	ac = malloc(sizeof(struct arpcom));
+	ac = new arpcom;
 	bzero(ac, sizeof(struct arpcom));
 	ac->ac_ifp = ifp;
 
