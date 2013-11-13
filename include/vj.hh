@@ -13,6 +13,7 @@ struct socket;
 
 #include <unordered_map>
 #include <functional>
+#include <lockfree/ring.hh>
 
 struct vj_hashed_tuple {
 public:
@@ -47,6 +48,10 @@ struct equal_to<vj_hashed_tuple> {
 }
 
 namespace vj {
+
+static constexpr int rcv_ring_size = 1024;
+
+typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_type;
 
 struct classifer_control_msg {
     enum cls_type {
@@ -101,9 +106,13 @@ private:
 
 __BEGIN_DECLS
 
-typedef void* vj_ringbuf;
-typedef void* vj_classifier;
-
+#ifdef __cplusplus
+typedef vj::vj_ring_type* vj_ringbuf;
+typedef vj::classifier* vj_classifier;
+#else
+typedef struct vj_ringbuf_struct *vj_ringbuf;
+typedef struct vj_classifier_struct *vj_classifier;
+#endif
 //////////////////////////////// Ring Creation /////////////////////////////////
 
 vj_ringbuf vj_ringbuf_create();

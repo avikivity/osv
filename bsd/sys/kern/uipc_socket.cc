@@ -278,7 +278,7 @@ soalloc(struct vnet *vnet)
 	trace_socket_soalloc(so);
 	SOCKBUF_LOCK_INIT(&so->so_snd, "so_snd");
 	SOCKBUF_LOCK_INIT(&so->so_rcv, "so_rcv");
-	so->so_rcv.sb_ring = vj_ringbuf_create();
+	so->so_rcv.sb_ring = new vj::vj_ring_type;
 	so->so_rcv.sb_vj_rx_packets = 0;
 	rw_init(&so->so_snd.sb_rwlock, "so_snd_sx");
 	rw_init(&so->so_rcv.sb_rwlock, "so_rcv_sx");

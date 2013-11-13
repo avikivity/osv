@@ -886,7 +886,7 @@ ether_ifattach(struct ifnet *ifp, const u_int8_t *lla)
 	ifp->if_broadcastaddr = etherbroadcastaddr;
 
 	/* Van Jacobson classifer for interface */
-	ifp->classifier = vj_classifier_create();
+	ifp->classifier = new vj::classifier;
 
 	ifa = ifp->if_addr;
 	KASSERT(ifa != NULL, ("%s: no lladdr!\n", __func__));

@@ -7,7 +7,6 @@
 
 #include <unordered_map>
 
-#include <lockfree/ring.hh>
 #include <osv/trace.hh>
 #include <osv/poll.h>
 #include <osv/types.h>
@@ -34,8 +33,7 @@ TRACEPOINT(trace_vj_classifier_packet_popped, "%p", struct mbuf*);
 TRACEPOINT(trace_vj_classifier_waiting, "");
 TRACEPOINT(trace_vj_classifier_done_waiting, "");
 
-const int rcv_ring_size = 1024;
-typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_type;
+using namespace vj;
 
 static vj_ringbuf ringbuf_to_c(vj_ring_type* ring)
 {
@@ -45,11 +43,6 @@ static vj_ringbuf ringbuf_to_c(vj_ring_type* ring)
 static vj_ring_type* ringbuf_from_c(vj_ringbuf ring)
 {
     return reinterpret_cast<vj_ring_type*>(ring);
-}
-
-static vj_classifier classifier_to_c(vj::classifier* cls)
-{
-    return reinterpret_cast<vj_classifier>(cls);
 }
 
 static vj::classifier* classifier_from_c(vj_classifier cls)
@@ -253,11 +246,6 @@ void vj_wait(vj_ringbuf ringbuf)
 
 //////////////////////////////////////////////////////////////////////////////
 
-
-vj_classifier vj_classifier_create()
-{
-    return classifier_to_c(new vj::classifier());
-}
 
 void vj_classify_remove(vj_classifier cls, struct in_addr laddr, struct in_addr faddr,
     u_char ip_p, u_int16_t lport, u_int16_t fport)
