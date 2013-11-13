@@ -219,7 +219,8 @@ void virtio_driver::wait_for_queue_plus(vring* queue, bool (vring::*pred)() cons
         virtual bool fired() { return f(); }
         func f;
     };
-    return wait_for_queue(queue, pred, tmp(external));
+    tmp x(external);
+    return wait_for_queue(queue, pred, x);
 }
 
 }
