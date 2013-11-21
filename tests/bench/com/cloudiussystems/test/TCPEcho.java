@@ -19,11 +19,13 @@ public class TCPEcho {
 		ServerSocket listener = new ServerSocket(port);
 		while (true) {
 			final Socket s = listener.accept();
-			new Thread(new Runnable() {
+			Thread t = new Thread(new Runnable() {
 				public void run() {
 					echo(s);
 				}
-			}).start();
+			});
+			t.setDaemon(true);
+			t.start();
 		}
 	}
 	
