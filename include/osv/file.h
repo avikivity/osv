@@ -86,6 +86,9 @@ struct file {
 	virtual int close() = 0;
 	virtual int chmod(mode_t mode) = 0;
 
+	virtual void poll_begin() {}
+	virtual void poll_end() {}
+
 	int		f_flags;	/* open flags */
 	int		f_count;	/* reference count, see below */
 	off_t		f_offset = 0;	/* current position in file */
