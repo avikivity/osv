@@ -92,7 +92,7 @@ void poll_drain(struct file* fp)
          */
 
         TAILQ_REMOVE(&fp->f_poll_list, pl, _link);
-        free(pl);
+        delete pl;
     }
     FD_UNLOCK(fp);
 }
@@ -197,8 +197,7 @@ void poll_install(struct pollreq* p)
         assert(fp);
 
         /* Allocate a link */
-        pl = (struct poll_link *) malloc(sizeof(struct poll_link));
-        memset(pl, 0, sizeof(struct poll_link));
+        pl = new poll_link;
 
         /* Save a reference to request on current file structure.
          * will be cleared on wakeup()
@@ -246,7 +245,7 @@ void poll_uninstall(struct pollreq* p)
         TAILQ_FOREACH(pl, &fp->f_poll_list, _link) {
             if (pl->_req == p) {
                 TAILQ_REMOVE(&fp->f_poll_list, pl, _link);
-                free(pl);
+                delete pl;
                 break;
             }
         }

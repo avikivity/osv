@@ -123,6 +123,7 @@ struct pollfd {
             POLLWRNORM | POLLRDBAND | POLLWRBAND)
 
 struct poll_file;
+struct poll_link;
 
 #ifdef __cplusplus
 
@@ -152,15 +153,15 @@ struct pollreq {
     struct mtx _awake_mutex;
 };
 
-#endif
-
 /* linked list of pollreq links */
 struct poll_link {
-    TAILQ_ENTRY(poll_link) _link;
-    struct pollreq* _req;
+    TAILQ_ENTRY(poll_link) _link = {};
+    struct pollreq* _req = nullptr;
     /* Events being polled... */
-    int _events;
+    int _events = 0;
 };
+
+#endif
 
 struct file;
 
