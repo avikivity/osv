@@ -53,7 +53,7 @@ int select (int nfds,
         return 0;
     }
 
-    req = malloc(max_size);
+    req = static_cast<pollfd*>(malloc(max_size));
     if (req == NULL) {
         select_d("select() failed no memory");
         errno = ENOMEM;
