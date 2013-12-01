@@ -87,6 +87,14 @@ extern rcu_lock_type rcu_read_lock;
 extern preempt_lock_in_rcu_type preempt_lock_in_rcu;
 extern rcu_lock_in_preempt_type rcu_read_lock_in_preempt_disabled;
 
+// object "deleter" that calls rcu_dispose()
+template <typename T>
+struct rcu_disposer;
+
+// type that holds an rcu object on its way to disposal
+template <typename T>
+using rcu_old_ptr = std::unique_ptr<T, rcu_disposer<T>>;
+
 template <typename T>
 class rcu_ptr {
 public:
@@ -100,6 +108,10 @@ public:
     // Access contents, must be called with exclusive access wrt.
     // mutator (i.e. in same context as assign().
     T* read_by_owner();
+    // Access contents, must be called with exclusive access wrt.
+    // mutator (i.e. in same context as assign().
+    // Returned pointer will be destroyed using rcu_dispose().
+    rcu_old_ptr<T> read_by_owner_for_dispose();
     // Check if the pointer is non-null, can be done outside
     // rcu_read_lock
     operator bool() const;
@@ -123,6 +135,11 @@ static void rcu_defer(functor func, T* p);
 void rcu_defer(std::function<void ()>&& func);
 
 void rcu_init();
+
+template <typename T>
+struct rcu_disposer {
+    void operator()(T* obj) const { rcu_dispose(obj); }
+};
 
 ///////////////
 
