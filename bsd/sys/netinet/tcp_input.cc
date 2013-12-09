@@ -368,7 +368,7 @@ cc_conn_init(struct tcpcb *tp)
 		CC_ALGO(tp)->conn_init(tp->ccv);
 }
 
-void inline
+void
 cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type)
 {
 	INP_WLOCK_ASSERT(tp->t_inpcb);

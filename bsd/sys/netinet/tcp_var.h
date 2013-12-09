@@ -34,6 +34,9 @@
 #define _NETINET_TCP_VAR_H_
 
 #include <bsd/sys/netinet/tcp.h>
+#include <sys/cdefs.h>
+
+__BEGIN_DECLS
 
 #ifdef _KERNEL
 #include <bsd/sys/net/vnet.h>
@@ -738,5 +741,7 @@ u_long	 tcp_seq_subtract(u_long, u_long );
 void	cc_cong_signal(struct tcpcb *tp, struct tcphdr *th, uint32_t type);
 
 #endif /* _KERNEL */
+
+__END_DECLS
 
 #endif /* _NETINET_TCP_VAR_H_ */

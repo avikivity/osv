@@ -348,6 +348,8 @@ bsd += bsd/sys/xen/xenbus/xenbusb_front.o
 bsd += bsd/sys/dev/xen/netfront/netfront.o
 bsd += bsd/sys/dev/xen/blkfront/blkfront.o
 
+bsd/sys/netinet/tcp_input.o: COMMON += -Wno-sign-compare
+
 solaris :=
 solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris.o
 solaris += bsd/sys/cddl/compat/opensolaris/kern/opensolaris_atomic.o
