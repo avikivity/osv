@@ -52,6 +52,10 @@ static vj::classifier* classifier_from_c(vj_classifier cls)
 
 namespace vj {
 
+classifer_control_msg::~classifer_control_msg()
+{
+}
+
 classifier::classifier()
 {
 
@@ -62,21 +66,30 @@ classifier::~classifier()
 
 }
 
+struct classifier_add_msg : classifer_control_msg {
+    classifier_add_msg(vj_hashed_tuple ht, vj_ring_type* ring)
+        : ht(ht), ring(ring) {}
+    virtual void apply(classifier* c) { c->do_add(ht, ring); }
+    vj_hashed_tuple ht;
+    vj_ring_type* ring;
+};
+
+struct classifier_del_msg : classifer_control_msg {
+    explicit classifier_del_msg(vj_hashed_tuple ht)
+        : ht(ht) {}
+    virtual void apply(classifier* c) { c->do_del(ht); }
+    vj_hashed_tuple ht;
+};
+
 void classifier::add(struct in_addr src_ip, struct in_addr dst_ip,
     u8 ip_proto, u16 src_port, u16 dst_port, vj_ring_type* ring)
 {
     trace_vj_classifier_cls_add(src_ip.s_addr, dst_ip.s_addr,
         ip_proto, src_port, dst_port, ring);
 
-    classifer_control_msg * cmsg = new classifer_control_msg();
-    cmsg->next = nullptr;
-    cmsg->ht.src_ip = src_ip;
-    cmsg->ht.dst_ip = dst_ip;
-    cmsg->ht.ip_proto = ip_proto;
-    cmsg->ht.src_port = src_port;
-    cmsg->ht.dst_port = dst_port;
-    cmsg->ring = ring;
-    cmsg->type = classifer_control_msg::ADD;
+    classifer_control_msg * cmsg = new classifier_add_msg(
+            vj_hashed_tuple(src_ip, dst_ip, ip_proto, src_port, dst_port),
+            ring);
 
     _cls_control.push(cmsg);
 }
@@ -88,14 +101,8 @@ void classifier::remove(struct in_addr src_ip, struct in_addr dst_ip,
     trace_vj_classifier_cls_remove(src_ip.s_addr, dst_ip.s_addr,
         ip_proto, src_port, dst_port);
 
-    classifer_control_msg * cmsg = new classifer_control_msg();
-    cmsg->next = nullptr;
-    cmsg->ht.src_ip = src_ip;
-    cmsg->ht.dst_ip = dst_ip;
-    cmsg->ht.ip_proto = ip_proto;
-    cmsg->ht.src_port = src_port;
-    cmsg->ht.dst_port = dst_port;
-    cmsg->type = classifer_control_msg::REMOVE;
+    classifer_control_msg * cmsg = new classifier_del_msg(
+            vj_hashed_tuple(src_ip, dst_ip, ip_proto, src_port, dst_port));
 
     _cls_control.push(cmsg);
 }
@@ -104,29 +111,25 @@ void classifier::process_control(void)
 {
     struct classifer_control_msg * item;
     while ((item = _cls_control.pop())) {
-        switch (item->type) {
-        case classifer_control_msg::ADD:
-            _classifications.insert(std::make_pair(item->ht, item->ring));
-            break;
-        case classifer_control_msg::REMOVE:
-            _classifications.erase(item->ht);
-            break;
-        default:
-            debug("vj: unknown classification\n");
-        }
+        item->apply(this);
         delete item;
     }
+}
+
+void classifier::do_add(vj_hashed_tuple ht, vj_ring_type* ring)
+{
+    _classifications.insert(std::make_pair(ht, ring));
+}
+
+void classifier::do_del(vj_hashed_tuple ht)
+{
+    _classifications.erase(ht);
 }
 
 vj_ring_type* classifier::lookup(struct in_addr src_ip, struct in_addr dst_ip,
     u8 ip_proto, u16 src_port, u16 dst_port)
 {
-    vj_hashed_tuple ht;
-    ht.src_ip = src_ip;
-    ht.dst_ip = dst_ip;
-    ht.ip_proto = ip_proto;
-    ht.src_port = src_port;
-    ht.dst_port = dst_port;
+    vj_hashed_tuple ht(src_ip, dst_ip, ip_proto, src_port, dst_port);
 
     auto it = _classifications.find(ht);
     if (it == _classifications.end()) {

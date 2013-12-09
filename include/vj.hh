@@ -17,6 +17,10 @@ struct socket;
 
 struct vj_hashed_tuple {
 public:
+    vj_hashed_tuple(in_addr src_ip, in_addr dst_ip, u8 ip_proto,
+            u16 src_port, u16 dst_port)
+        : src_ip(src_ip), dst_ip(dst_ip), ip_proto(ip_proto)
+        , src_port(src_port), dst_port(dst_port) {}
     struct in_addr src_ip;
     struct in_addr dst_ip;
     u8 ip_proto;
@@ -53,18 +57,18 @@ static constexpr int rcv_ring_size = 1024;
 
 typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_type;
 
-struct classifer_control_msg {
-    enum cls_type {
-        ADD,
-        REMOVE
-    };
+class classifier;
 
-    classifer_control_msg *next;
-    cls_type type;
-    vj_hashed_tuple ht;
-    vj_ring_type* ring;
+struct classifer_control_msg {
+    classifer_control_msg() = default;
+    classifer_control_msg(const classifer_control_msg&) = delete;
+    virtual ~classifer_control_msg();
+    virtual void apply(classifier* c) = 0;
+    classifer_control_msg *next = nullptr;
 };
 
+class classifier_add_msg;
+class classifier_del_msg;
 
 //
 // Implements lockless packet classification using a hash function
@@ -88,7 +92,8 @@ public:
     bool try_deliver(struct mbuf* m);
 
 private:
-
+    void do_add(vj_hashed_tuple ht, vj_ring_type* ring);
+    void do_del(vj_hashed_tuple ht);
     vj_ring_type* lookup(struct in_addr src_ip, struct in_addr dst_ip,
         u8 ip_proto, u16 src_port, u16 dst_port);
 
@@ -97,6 +102,9 @@ private:
     // Control messages
     void process_control(void);
     lockfree::queue_mpsc<classifer_control_msg> _cls_control;
+
+    friend class classifier_add_msg;
+    friend class classifier_del_msg;
 };
 
 }
