@@ -50,6 +50,8 @@
 
 #endif
 
+struct pollreq;
+
 __BEGIN_DECLS
 
 /*
@@ -86,8 +88,8 @@ struct file {
 	virtual int close() = 0;
 	virtual int chmod(mode_t mode) = 0;
 
-	virtual void poll_begin() {}
-	virtual void poll_end() {}
+	virtual void poll_begin(pollreq& poll) {}
+	virtual void poll_end(pollreq& poll) {}
 
 	int		f_flags;	/* open flags */
 	int		f_count;	/* reference count, see below */

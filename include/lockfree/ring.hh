@@ -21,6 +21,16 @@
 template<class T, unsigned MaxSize>
 class ring_spsc {
 public:
+    class snapshot_type {
+    private:
+        snapshot_type(unsigned idx) : _producer_index(idx) {}
+    public:
+        snapshot_type(const snapshot_type&) = default;
+    private:
+        unsigned _producer_index;
+        friend class ring_spsc;
+    };
+public:
     ring_spsc(): _begin(0), _end(0) { }
 
     bool push(const T& element)
@@ -60,6 +70,13 @@ public:
         return (end - beg);
     }
 
+    snapshot_type snapshot() const {
+        return snapshot_type(_end.load(std::memory_order_relaxed));
+    }
+
+    bool modified_since(const snapshot_type& snapshot) const {
+        return snapshot._producer_index != _end.load(std::memory_order_relaxed);
+    }
 private:
     std::atomic<unsigned> _begin CACHELINE_ALIGNED;
     std::atomic<unsigned> _end CACHELINE_ALIGNED;

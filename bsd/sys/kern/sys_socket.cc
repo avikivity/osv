@@ -286,3 +286,12 @@ int socket_file::chmod(mode_t mode)
 {
     return unsupported_chmod(this, mode);
 }
+
+void socket_file::poll_begin(pollreq& poll)
+{
+}
+
+void socket_file::poll_end(pollreq& poll)
+{
+}
+

@@ -38,6 +38,7 @@
 #ifdef __cplusplus
 
 #include <fs/fs.hh>
+#include <vj.hh>
 #include <vector>
 
 #endif
@@ -134,6 +135,7 @@ struct poll_file {
     fileref fp;
     short events;
     short revents;
+    vj::poll_entry* net_channel_entry;
 };
 
 /*

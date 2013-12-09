@@ -14,18 +14,20 @@ struct socket;
 #include <unordered_map>
 #include <functional>
 #include <lockfree/ring.hh>
+#include <list>
 
 struct vj_hashed_tuple {
 public:
+    vj_hashed_tuple() {}
     vj_hashed_tuple(in_addr src_ip, in_addr dst_ip, u8 ip_proto,
             u16 src_port, u16 dst_port)
         : src_ip(src_ip), dst_ip(dst_ip), ip_proto(ip_proto)
         , src_port(src_port), dst_port(dst_port) {}
-    struct in_addr src_ip;
-    struct in_addr dst_ip;
-    u8 ip_proto;
-    u16 src_port;
-    u16 dst_port;
+    struct in_addr src_ip = {};
+    struct in_addr dst_ip = {};
+    u8 ip_proto = {};
+    u16 src_port = {};
+    u16 dst_port = {};
 };
 
 namespace std {
@@ -59,7 +61,19 @@ typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_base;
 
 struct vj_ring_type : vj_ring_base {
     explicit vj_ring_type(socket* so) : so(so) {}
+    vj_hashed_tuple ht;
     socket* so;
+};
+
+struct poll_entry {
+    vj_ring_type* ring;
+    vj_ring_type::snapshot_type snapshot;
+    sched::thread_handle poll_thread;
+};
+
+struct poll_ring : ring_spsc<vj_ring_type*, 1024> {
+    std::atomic<bool> check_all;
+    sched::thread_handle poller;
 };
 
 class classifier;
@@ -74,6 +88,10 @@ struct classifer_control_msg {
 
 class classifier_add_msg;
 class classifier_del_msg;
+class classifier_add_poll;
+class classifier_del_poll;
+class classifier_add_poller;
+class classifier_del_poller;
 
 //
 // Implements lockless packet classification using a hash function
@@ -92,6 +110,12 @@ public:
     void remove(struct in_addr src_ip, struct in_addr dst_ip,
         u8 ip_proto, u16 src_port, u16 dst_port);
 
+    void add_poller(poll_ring* poller);
+    void del_poller(poll_ring* poller);
+
+    void add_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
+    void del_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
+
     // If we have an existing classification, queue this packet on the rx
     // sockbuf processing ring
     bool try_deliver(struct mbuf* m);
@@ -99,10 +123,19 @@ public:
 private:
     void do_add(vj_hashed_tuple ht, vj_ring_type* ring);
     void do_del(vj_hashed_tuple ht);
+    void do_add_poller(poll_ring* poller);
+    void do_del_poller(poll_ring* poller);
+    void do_add_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
+    void do_del_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
     vj_ring_type* lookup(struct in_addr src_ip, struct in_addr dst_ip,
         u8 ip_proto, u16 src_port, u16 dst_port);
 
-    std::unordered_map<vj_hashed_tuple, vj_ring_type*> _classifications;
+    struct entry {
+        explicit entry(vj_ring_type* ring) : ring(ring) {}
+        vj_ring_type* ring;
+        std::list<poll_ring*> pollers;
+    };
+    std::unordered_map<vj_hashed_tuple, entry> _classifications;
 
     // Control messages
     void process_control(void);
@@ -110,6 +143,8 @@ private:
 
     friend class classifier_add_msg;
     friend class classifier_del_msg;
+    friend class classifier_add_poll;
+    friend class classifier_del_poll;
 };
 
 }
