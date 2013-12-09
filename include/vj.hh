@@ -62,7 +62,7 @@ struct classifer_control_msg {
     classifer_control_msg *next;
     cls_type type;
     vj_hashed_tuple ht;
-    struct socket *so;
+    vj_ring_type* ring;
 };
 
 
@@ -78,7 +78,7 @@ public:
     ~classifier();
 
     void add(struct in_addr src_ip, struct in_addr dst_ip,
-        u8 ip_proto, u16 src_port, u16 dst_port, struct socket* so);
+        u8 ip_proto, u16 src_port, u16 dst_port, vj_ring_type* ring);
 
     void remove(struct in_addr src_ip, struct in_addr dst_ip,
         u8 ip_proto, u16 src_port, u16 dst_port);
@@ -89,10 +89,10 @@ public:
 
 private:
 
-    struct socket* lookup(struct in_addr src_ip, struct in_addr dst_ip,
+    vj_ring_type* lookup(struct in_addr src_ip, struct in_addr dst_ip,
         u8 ip_proto, u16 src_port, u16 dst_port);
 
-    std::unordered_map<vj_hashed_tuple, struct socket*> _classifications;
+    std::unordered_map<vj_hashed_tuple, vj_ring_type*> _classifications;
 
     // Control messages
     void process_control(void);

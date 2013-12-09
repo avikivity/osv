@@ -20,7 +20,7 @@
 #include <bsd/sys/netinet/tcp.h>
 #include <bsd/sys/netinet/ip.h>
 
-TRACEPOINT(trace_vj_classifier_cls_add, "(%d,%d,%d,%d,%d)->%p", in_addr_t, in_addr_t, u8, u16, u16, struct socket*);
+TRACEPOINT(trace_vj_classifier_cls_add, "(%d,%d,%d,%d,%d)->%p", in_addr_t, in_addr_t, u8, u16, u16, vj::vj_ring_type*);
 TRACEPOINT(trace_vj_classifier_cls_remove, "(%d,%d,%d,%d,%d)", in_addr_t, in_addr_t, u8, u16, u16);
 TRACEPOINT(trace_vj_classifier_cls_lookup_found, "(%d,%d,%d,%d,%d)", in_addr_t, in_addr_t, u8, u16, u16);
 TRACEPOINT(trace_vj_classifier_cls_lookup_not_found, "(%d,%d,%d,%d,%d)", in_addr_t, in_addr_t, u8, u16, u16);
@@ -63,10 +63,10 @@ classifier::~classifier()
 }
 
 void classifier::add(struct in_addr src_ip, struct in_addr dst_ip,
-    u8 ip_proto, u16 src_port, u16 dst_port, struct socket* so)
+    u8 ip_proto, u16 src_port, u16 dst_port, vj_ring_type* ring)
 {
     trace_vj_classifier_cls_add(src_ip.s_addr, dst_ip.s_addr,
-        ip_proto, src_port, dst_port, so);
+        ip_proto, src_port, dst_port, ring);
 
     classifer_control_msg * cmsg = new classifer_control_msg();
     cmsg->next = nullptr;
@@ -75,7 +75,7 @@ void classifier::add(struct in_addr src_ip, struct in_addr dst_ip,
     cmsg->ht.ip_proto = ip_proto;
     cmsg->ht.src_port = src_port;
     cmsg->ht.dst_port = dst_port;
-    cmsg->so = so;
+    cmsg->ring = ring;
     cmsg->type = classifer_control_msg::ADD;
 
     _cls_control.push(cmsg);
@@ -106,7 +106,7 @@ void classifier::process_control(void)
     while ((item = _cls_control.pop())) {
         switch (item->type) {
         case classifer_control_msg::ADD:
-            _classifications.insert(std::pair<vj_hashed_tuple, struct socket*>(item->ht, item->so));
+            _classifications.insert(std::make_pair(item->ht, item->ring));
             break;
         case classifer_control_msg::REMOVE:
             _classifications.erase(item->ht);
@@ -118,7 +118,7 @@ void classifier::process_control(void)
     }
 }
 
-struct socket* classifier::lookup(struct in_addr src_ip, struct in_addr dst_ip,
+vj_ring_type* classifier::lookup(struct in_addr src_ip, struct in_addr dst_ip,
     u8 ip_proto, u16 src_port, u16 dst_port)
 {
     vj_hashed_tuple ht;
@@ -177,8 +177,8 @@ bool classifier::try_deliver(struct mbuf* m)
     src_port = tcp->th_sport;
     dst_port = tcp->th_dport;
 
-    struct socket* so = lookup(dst_ip, src_ip, ip_proto, dst_port, src_port);
-    if (so == nullptr) {
+    auto ring = lookup(dst_ip, src_ip, ip_proto, dst_port, src_port);
+    if (!ring) {
 //            uint8_t* packet = mtod(m, uint8_t*);
 //            puts("Packet lookup failed:\n");
 //            hexdump(packet, m->m_len);
@@ -187,7 +187,6 @@ bool classifier::try_deliver(struct mbuf* m)
         return false;
     }
 
-    vj_ring_type* ring = ringbuf_from_c(so->so_rcv.sb_ring);
     bool rc = ring->push(m);
     if (!rc) {
         trace_vj_classifier_packet_dropped();
@@ -199,13 +198,6 @@ bool classifier::try_deliver(struct mbuf* m)
 
     // Wake up user in case it is waiting
     ring->wake_consumer();
-
-    // If the user thread is being polled, wake it up so it could process
-    // the incoming packets
-    if (so->so_rcv.sb_flags & SB_SEL) {
-        trace_vj_classifier_poll_wake(m);
-        poll_wake(so->fp, POLL_VJ);
-    }
 
     return true;
 }
@@ -259,7 +251,7 @@ void vj_classify_add(vj_classifier cls,
 {
     vj::classifier* obj = classifier_from_c(cls);
     if (obj)
-        obj->add(laddr, faddr, ip_p, lport, fport, so);
+        obj->add(laddr, faddr, ip_p, lport, fport, so->so_rcv.sb_ring);
 }
 
 int vj_try_deliver(vj_classifier cls, struct mbuf* m)

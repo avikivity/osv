@@ -158,7 +158,7 @@ int poll_wake(struct file* fp, int events)
      * Wake each and every one.
      */
     TAILQ_FOREACH(pl, &fp->f_poll_list, _link) {
-        if ((pl->_events & events) || (events == POLL_VJ)) {
+        if (pl->_events & events) {
             mtx_lock(&pl->_req->_awake_mutex);
             pl->_req->_awake = true;
             mtx_unlock(&pl->_req->_awake_mutex);
