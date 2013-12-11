@@ -128,7 +128,6 @@ typedef struct vj_classifier_struct *vj_classifier;
 #endif
 //////////////////////////////// Ring Creation /////////////////////////////////
 
-vj_ringbuf vj_ringbuf_create();
 struct mbuf* vj_ringbuf_pop(vj_ringbuf ringbuf);
 void vj_ringbuf_destroy(vj_ringbuf ringbuf);
 

@@ -35,11 +35,6 @@ TRACEPOINT(trace_vj_classifier_done_waiting, "");
 
 using namespace vj;
 
-static vj_ringbuf ringbuf_to_c(vj_ring_type* ring)
-{
-    return reinterpret_cast<vj_ringbuf>(ring);
-}
-
 static vj_ring_type* ringbuf_from_c(vj_ringbuf ring)
 {
     return reinterpret_cast<vj_ring_type*>(ring);
@@ -207,11 +202,6 @@ bool classifier::try_deliver(struct mbuf* m)
 
 } // namespace vj
 
-
-vj_ringbuf vj_ringbuf_create()
-{
-    return ringbuf_to_c(new vj_ring_type());
-}
 
 struct mbuf* vj_ringbuf_pop(vj_ringbuf ringbuf)
 {
