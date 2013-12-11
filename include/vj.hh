@@ -55,7 +55,12 @@ namespace vj {
 
 static constexpr int rcv_ring_size = 1024;
 
-typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_type;
+typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_base;
+
+struct vj_ring_type : vj_ring_base {
+    explicit vj_ring_type(socket* so) : so(so) {}
+    socket* so;
+};
 
 class classifier;
 
