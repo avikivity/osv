@@ -78,10 +78,10 @@ struct classifier_del_msg : classifer_control_msg {
 };
 
 struct classifier_add_poll : classifer_control_msg {
-    explicit classifier_add_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
+    explicit classifier_add_poll(vector<ring_reference>&& rings, poll_ring* poller)
         : rings(move(rings)), poller(poller) {}
     virtual void apply(classifier* c) { c->do_add_poll(move(rings), poller); }
-    vector<vj_ring_type*> rings;
+    vector<ring_reference> rings;
     poll_ring* poller;
 };
 
@@ -119,7 +119,7 @@ void classifier::remove(struct in_addr src_ip, struct in_addr dst_ip,
     _cls_control.push(cmsg);
 }
 
-void classifier::add_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
+void classifier::add_poll(vector<ring_reference>&& rings, poll_ring* poller)
 {
     _cls_control.push(new classifier_add_poll(move(rings), poller));
 }
@@ -141,7 +141,7 @@ void classifier::process_control(void)
 void classifier::do_add(vj_hashed_tuple ht, vj_ring_type* ring)
 {
     ring->ht = ht;
-    _classifications.insert(std::make_pair(ht, entry(ring)));
+    _classifications.insert(std::make_pair(ht, ring));
 }
 
 void classifier::do_del(vj_hashed_tuple ht)
@@ -149,20 +149,22 @@ void classifier::do_del(vj_hashed_tuple ht)
     _classifications.erase(ht);
 }
 
-void classifier::do_add_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
+void classifier::do_add_poll(vector<ring_reference>&& rings, poll_ring* poller)
 {
-    for (auto ring : rings) {
-        _classifications[ring->ht].pollers.push_back(poller);
+    bool wake = false;
+    for (auto& ref : rings) {
+        _classifications[ref.ring->ht]->pollers.push_back(poller);
+        wake |= ref.ring->modified_since(ref.snapshot);
     }
-    // tell client to verify all the rings
-    poller->check_all.store(true, memory_order_relaxed);
-    poller->poller.wake();
+    if (wake) {
+        poller->poller.wake();
+    }
 }
 
 void classifier::do_del_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
 {
     for (auto ring : rings) {
-        _classifications[ring->ht].pollers.erase(poller);
+        _classifications[ring->ht]->pollers.remove(poller);
     }
 }
 

@@ -338,7 +338,7 @@ bsd += bsd/sys/xdr/xdr.o
 bsd += bsd/sys/xdr/xdr_array.o
 bsd += bsd/sys/xdr/xdr_mem.o
 
-bsd/%.o: COMMON += -DXEN -DXENHVM
+bsd/%.o: COMMON += -DXEN -DXENHVM -DHORRIBLE_MACROS
 bsd += bsd/sys/xen/gnttab.o
 bsd += bsd/sys/xen/evtchn.o
 bsd += bsd/sys/xen/xenstore/xenstore.o

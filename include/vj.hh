@@ -59,10 +59,13 @@ static constexpr int rcv_ring_size = 1024;
 
 typedef ring_spsc_waiter<struct mbuf*, rcv_ring_size> vj_ring_base;
 
+struct poll_ring;
+
 struct vj_ring_type : vj_ring_base {
     explicit vj_ring_type(socket* so) : so(so) {}
     vj_hashed_tuple ht;
     socket* so;
+    std::list<poll_ring*> pollers;
 };
 
 struct poll_entry {
@@ -72,8 +75,13 @@ struct poll_entry {
 };
 
 struct poll_ring : ring_spsc<vj_ring_type*, 1024> {
-    std::atomic<bool> check_all;
     sched::thread_handle poller;
+};
+
+struct ring_reference {
+    ring_reference(vj_ring_type* ring) : ring(ring), snapshot(ring->snapshot()) {}
+    vj_ring_type* ring;
+    vj_ring_type::snapshot_type snapshot;
 };
 
 class classifier;
@@ -113,7 +121,7 @@ public:
     void add_poller(poll_ring* poller);
     void del_poller(poll_ring* poller);
 
-    void add_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
+    void add_poll(std::vector<ring_reference>&& rings, poll_ring* poller);
     void del_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
 
     // If we have an existing classification, queue this packet on the rx
@@ -121,21 +129,21 @@ public:
     bool try_deliver(struct mbuf* m);
 
 private:
-    void do_add(vj_hashed_tuple ht, vj_ring_type* ring);
-    void do_del(vj_hashed_tuple ht);
-    void do_add_poller(poll_ring* poller);
-    void do_del_poller(poll_ring* poller);
-    void do_add_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
-    void do_del_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
-    vj_ring_type* lookup(struct in_addr src_ip, struct in_addr dst_ip,
-        u8 ip_proto, u16 src_port, u16 dst_port);
-
     struct entry {
         explicit entry(vj_ring_type* ring) : ring(ring) {}
         vj_ring_type* ring;
         std::list<poll_ring*> pollers;
     };
-    std::unordered_map<vj_hashed_tuple, entry> _classifications;
+    void do_add(vj_hashed_tuple ht, vj_ring_type* ring);
+    void do_del(vj_hashed_tuple ht);
+    void do_add_poller(poll_ring* poller);
+    void do_del_poller(poll_ring* poller);
+    void do_add_poll(std::vector<ring_reference>&& rings, poll_ring* poller);
+    void do_del_poll(std::vector<vj_ring_type*>&& rings, poll_ring* poller);
+    vj_ring_type* lookup(struct in_addr src_ip, struct in_addr dst_ip,
+        u8 ip_proto, u16 src_port, u16 dst_port);
+
+    std::unordered_map<vj_hashed_tuple, vj_ring_type*> _classifications;
 
     // Control messages
     void process_control(void);
