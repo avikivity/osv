@@ -62,6 +62,29 @@ TRACEPOINT(trace_poll, "_pfd=%p, _nfds=%lu, _timeout=%d", struct pollfd *, nfds_
 TRACEPOINT(trace_poll_ret, "%d", int);
 TRACEPOINT(trace_poll_err, "%d", int);
 
+using namespace std;
+using namespace vj;
+
+void pollreq::add_net_channel(vj::vj_ring_type* ring)
+{
+    auto cfer = ring->cfer;
+    auto& entry = _poll_rings[cfer];
+    entry.clients.push_back(ring);
+    cfer->add_poll(ring, ring->snapshot(), entry.ring.get());
+}
+
+void pollreq::unsubscribe_net_channels()
+{
+    for (auto& cfer_entry : _poll_rings) {
+        auto cfer = cfer_entry.first;
+        auto& entry = cfer_entry.second;
+        for (auto& ring : entry.clients) {
+            cfer->del_poll(ring, entry.ring.get());
+        }
+        cfer->del_poller(entry.ring.release());
+    }
+}
+
 int poll_no_poll(int events)
 {
     /*
@@ -207,6 +230,7 @@ void poll_install(struct pollreq* p)
         // cannot be requested by the user (e.g., POLLHUP).
         pl->_events = entry->events | ~POLL_REQUESTABLE;
 
+        fp->poll_begin(*p);
         FD_LOCK(fp);
         TAILQ_INSERT_TAIL(&fp->f_poll_list, pl, _link);
         FD_UNLOCK(fp);
@@ -231,6 +255,8 @@ void poll_uninstall(struct pollreq* p)
 
     dbg_d("poll_uninstall()");
 
+    p->unsubscribe_net_channels();
+
     /* Remove pollreq from all file descriptors */
     for (i=0; i < p->_nfds; ++i) {
         auto entry = &p->_pfd[i];
@@ -240,6 +266,7 @@ void poll_uninstall(struct pollreq* p)
             continue;
         }
 
+        fp->poll_end(*p);
         /* Search for current pollreq and remove it from list */
         FD_LOCK(fp);
         TAILQ_FOREACH(pl, &fp->f_poll_list, _link) {

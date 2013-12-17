@@ -37,6 +37,7 @@
 #include <osv/types.h>
 #include <osv/ioctl.h>
 #include <osv/socket.hh>
+#include <osv/poll.h>
 #include <fs/unsupported.h>
 #include <osv/initialize.hh>
 
@@ -289,6 +290,9 @@ int socket_file::chmod(mode_t mode)
 
 void socket_file::poll_begin(pollreq& poll)
 {
+    if (so->so_rcv.sb_ring) {
+        poll.add_net_channel(so->so_rcv.sb_ring);
+    }
 }
 
 void socket_file::poll_end(pollreq& poll)

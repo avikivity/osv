@@ -356,6 +356,7 @@ public:
      * explained in set_priority().
      */
     float priority() const;
+    thread_handle handle();
 private:
     static void wake_impl(detached_state* st);
     void main();
@@ -376,7 +377,6 @@ private:
     friend void start_early_threads();
     template <typename T> T& remote_thread_local_var(T& var);
     void* do_remote_thread_local_var(void* var);
-    thread_handle handle();
 private:
     virtual void timer_fired() override;
     struct detached_state;

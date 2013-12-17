@@ -285,6 +285,7 @@ cc_conn_init(struct tcpcb *tp)
 	if (NULL != ifp) {
 		SOCK_LOCK(so);
 		so->vj_socket = 1;
+		so->so_rcv.sb_ring->cfer = ifp->classifier;
 		vj_classify_add(ifp->classifier, inp->inp_laddr, inp->inp_faddr,
 			IPPROTO_TCP, inp->inp_lport, inp->inp_fport, so);
 		SOCK_UNLOCK(so);

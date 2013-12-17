@@ -78,18 +78,25 @@ struct classifier_del_msg : classifer_control_msg {
 };
 
 struct classifier_add_poll : classifer_control_msg {
-    explicit classifier_add_poll(vector<ring_reference>&& rings, poll_ring* poller)
-        : rings(move(rings)), poller(poller) {}
-    virtual void apply(classifier* c) { c->do_add_poll(move(rings), poller); }
-    vector<ring_reference> rings;
+    explicit classifier_add_poll(vj_ring_type* ring, vj_ring_type::snapshot_type trigger, poll_ring* poller)
+        : ring(ring), trigger(trigger), poller(poller) {}
+    virtual void apply(classifier* c) { c->do_add_poll(ring, trigger, poller); }
+    vj_ring_type* ring;
+    vj_ring_type::snapshot_type trigger;
     poll_ring* poller;
 };
 
 struct classifier_del_poll : classifer_control_msg {
-    classifier_del_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
-        : rings(move(rings)), poller(poller) {}
-    virtual void apply(classifier* c) { c->do_del_poll(move(rings), poller); }
-    vector<vj_ring_type*> rings;
+    classifier_del_poll(vj_ring_type* ring, poll_ring* poller)
+        : ring(ring), poller(poller) {}
+    virtual void apply(classifier* c) { c->do_del_poll(ring, poller); }
+    vj_ring_type* ring;
+    poll_ring* poller;
+};
+
+struct classifier_del_poller : classifer_control_msg {
+    explicit classifier_del_poller(poll_ring* poller) : poller(poller) {}
+    virtual void apply(classifier* c) override { c->do_del_poller(poller); }
     poll_ring* poller;
 };
 
@@ -119,14 +126,19 @@ void classifier::remove(struct in_addr src_ip, struct in_addr dst_ip,
     _cls_control.push(cmsg);
 }
 
-void classifier::add_poll(vector<ring_reference>&& rings, poll_ring* poller)
+void classifier::add_poll(vj_ring_type* ring, vj_ring_type::snapshot_type trigger, poll_ring* poller)
 {
-    _cls_control.push(new classifier_add_poll(move(rings), poller));
+    _cls_control.push(new classifier_add_poll(ring, trigger, poller));
 }
 
-void classifier::del_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
+void classifier::del_poll(vj_ring_type* ring, poll_ring* poller)
 {
-    _cls_control.push(new classifier_del_poll(move(rings), poller));
+    _cls_control.push(new classifier_del_poll(ring, poller));
+}
+
+void classifier::del_poller(poll_ring* poller)
+{
+    _cls_control.push(new classifier_del_poller(poller));
 }
 
 void classifier::process_control(void)
@@ -149,23 +161,24 @@ void classifier::do_del(vj_hashed_tuple ht)
     _classifications.erase(ht);
 }
 
-void classifier::do_add_poll(vector<ring_reference>&& rings, poll_ring* poller)
+void classifier::do_add_poll(vj_ring_type* ring, vj_ring_type::snapshot_type trigger, poll_ring* poller)
 {
-    bool wake = false;
-    for (auto& ref : rings) {
-        _classifications[ref.ring->ht]->pollers.push_back(poller);
-        wake |= ref.ring->modified_since(ref.snapshot);
-    }
-    if (wake) {
+    _classifications[ring->ht]->pollers.push_back(poller);
+    if (ring->modified_since(trigger)) {
         poller->poller.wake();
     }
 }
 
-void classifier::do_del_poll(vector<vj_ring_type*>&& rings, poll_ring* poller)
+void classifier::do_del_poll(vj_ring_type* ring, poll_ring* poller)
 {
-    for (auto ring : rings) {
-        _classifications[ring->ht]->pollers.remove(poller);
-    }
+    _classifications[ring->ht]->pollers.remove(poller);
+}
+
+void classifier::do_del_poller(poll_ring* poller)
+{
+    // we must delete the poll ring from the classifier context, to ensure it
+    // has processed all the previous del_poll messages
+    delete poller;
 }
 
 vj_ring_type* classifier::lookup(struct in_addr src_ip, struct in_addr dst_ip,

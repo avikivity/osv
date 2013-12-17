@@ -40,6 +40,7 @@
 #include <fs/fs.hh>
 #include <vj.hh>
 #include <vector>
+#include <unordered_map>
 
 #endif
 
@@ -135,7 +136,6 @@ struct poll_file {
     fileref fp;
     short events;
     short revents;
-    vj::poll_entry* net_channel_entry;
 };
 
 /*
@@ -153,6 +153,17 @@ struct pollreq {
     int _timeout;
     bool _awake;
     struct mtx _awake_mutex;
+
+    struct netif_entry {
+        netif_entry() : ring(new vj::poll_ring) {}
+        std::unique_ptr<vj::poll_ring> ring;
+        std::vector<vj::vj_ring_type*> clients;
+    };
+
+    std::unordered_map<vj::classifier*, netif_entry> _poll_rings;
+
+    void add_net_channel(vj::vj_ring_type* ring);
+    void unsubscribe_net_channels();
 };
 
 /* linked list of pollreq links */
