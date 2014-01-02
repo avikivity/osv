@@ -187,7 +187,32 @@ protected:
 class timer : public timer_base {
 public:
     explicit timer(thread& t);
+private:
+    class waiter;
+    friend class waiter;
+    friend waiter wait_object(timer& tmr, mutex& mtx);
+    friend waiter wait_object(timer& tmr);
 };
+
+class timer::waiter {
+public:
+    explicit waiter(timer& tmr) : _tmr(tmr) {}
+    bool poll() const { return _tmr.expired(); }
+    void arm() {}
+    void disarm() {}
+private:
+    timer& _tmr;
+};
+
+inline timer::waiter wait_object(timer& tmr, mutex& mtx)
+{
+    return timer::waiter(tmr);
+}
+
+inline timer::waiter wait_object(timer& tmr)
+{
+    return timer::waiter(tmr);
+}
 
 // thread_runtime is used to maintain the scheduler's view of the thread's
 // priority relative to other threads. It knows about a static priority of the
