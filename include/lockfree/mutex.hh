@@ -93,6 +93,9 @@ public:
     // For wait morphing. Do not use unless you know what you are doing :-)
     void send_lock(wait_record *wr);
     void receive_lock();
+
+    // Transfer ownership of the lock to t
+    void move_lock(sched::thread* t);
 };
 
 }

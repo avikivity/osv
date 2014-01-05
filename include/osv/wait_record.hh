@@ -52,6 +52,7 @@ public:
     inline const sched::thread *thread(void) const {
         return t;
     }
+    sched::thread* thread() { return t; }
 
     // woken() returns true if the wait_record was already woken by a wake()
     // (a timeout doesn't set the wait_record to woken()).
@@ -59,13 +60,14 @@ public:
         return !t;
     }
 
+protected:
     // A waiter object cannot be copied or moved, as wake() on the copy will
     // simply zero its copy of the content - not the original content on which
     // wait() is waiting on.
-    waiter(const waiter &) = delete;
-    waiter &operator=(const waiter &) = delete;
-    waiter(waiter &&) = delete;
-    waiter &operator=(waiter &&) = delete;
+    waiter(const waiter &) = default;
+    waiter &operator=(const waiter &) = default;
+    waiter(waiter &&) = default;
+    waiter &operator=(waiter &&) = default;
 
 };
 

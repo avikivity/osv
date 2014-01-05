@@ -422,7 +422,7 @@ private:
     template <class Mutex, class Pred>
     static void do_wait_until(Mutex& mtx, Pred pred);
     template <typename mutex, typename... wait_object>
-    static void do_wait_for(mutex& mtx, wait_object... wait_objects);
+    static void do_wait_for(mutex& mtx, wait_object&&... wait_objects);
     struct dummy_lock {};
     friend void acquire(dummy_lock&) {}
     friend void release(dummy_lock&) {}
@@ -797,7 +797,7 @@ void disarm(wait_object_first& first, wait_object_rest&... rest)
 
 template <typename mutex, typename... wait_object>
 inline
-void thread::do_wait_for(mutex& mtx, wait_object... wait_objects)
+void thread::do_wait_for(mutex& mtx, wait_object&&... wait_objects)
 {
     if (poll(wait_objects...)) {
         return;

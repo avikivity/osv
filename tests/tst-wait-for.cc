@@ -10,6 +10,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <sched.hh>
+#include <osv/waitqueue.hh>
 #include <drivers/clock.hh>
 #include <cstdlib>
 
@@ -38,3 +39,27 @@ BOOST_AUTO_TEST_CASE(test_wait_for_two_timers)
     BOOST_REQUIRE(tmr1.expired() && !tmr2.expired());
 }
 
+#include <debug.hh>
+
+BOOST_AUTO_TEST_CASE(test_waitqueue)
+{
+    waitqueue wq;
+    mutex mtx;
+    int counter = 0;
+    debug("entry\n");
+    WITH_LOCK(mtx) {
+        sched::thread waker([&] {
+            debug("waker thread\n");
+            WITH_LOCK(mtx) {
+                debug("waker thread: acquired lock\n");
+                ++counter;
+                wq.wake_one(mtx);
+                debug("waker thread: wake_one() done\n");
+            }
+        });
+        waker.start();
+        debug("waiting\n");
+        wq.wait(mtx);
+    }
+    BOOST_REQUIRE(counter == 1);
+}
