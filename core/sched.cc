@@ -369,6 +369,13 @@ void cpu::handle_incoming_wakeups()
         while (!q.empty()) {
             auto& t = q.front();
             q.pop_front_nonatomic();
+            auto& st = t._detached_state;
+            if (st->wait_mtx) {
+                // someone sent us a mutex, take it
+                st->wait_mtx->receive_lock();
+                st->wait_mtx = nullptr;
+                st->received_lock = true;
+            }
             irq_save_lock_type irq_lock;
             WITH_LOCK(irq_lock) {
                 if (&t == thread::current()) {
@@ -731,6 +738,33 @@ void thread::wake()
     }
 }
 
+void thread::wake_lock(mutex* mtx, wait_record* wr)
+{
+    // must be called with mtx held
+    WITH_LOCK(rcu_read_lock) {
+        auto st = _detached_state.get();
+        if (!st) {
+            return;
+        }
+        // We want to send_lock() to this thread, but we want to be sure we're the only
+        // ones doing it, and that it doesn't wake up while we do
+        auto expected = status::waiting;
+        if (!st->st.compare_exchange_strong(expected, status::sending_lock, std::memory_order_relaxed)) {
+            // let the thread acquire the lock itself
+            return;
+        }
+        if (st->wait_mtx) {
+            // someone else sent the lock already
+            return;
+        }
+        st->wait_mtx = mtx;
+        mtx->send_lock(wr);
+        // we may have missed some wake()s before this, but they don't matter,
+        // since the mutex is held.
+        st->st.store(status::waiting, std::memory_order_release);
+    }
+}
+
 void thread::main()
 {
     _func();
@@ -766,7 +800,7 @@ void thread::stop_wait()
         return;
     }
     preempt_enable();
-    while (st.load() == status::waking) {
+    while (st.load() == status::waking || st.load() == status::sending_lock) {
         schedule();
     }
     assert(st.load() == status::running);

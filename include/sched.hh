@@ -367,6 +367,7 @@ public:
     static void wait_for(mutex& mtx, waitable&... waitables);
 
     void wake();
+    void wake_lock(mutex* mtx, wait_record* wr);
     template <class Action>
     inline void wake_with(Action action);
     static void sleep_until(s64 abstime);
@@ -429,6 +430,7 @@ private:
     template <typename T> T& remote_thread_local_var(T& var);
     void* do_remote_thread_local_var(void* var);
     thread_handle handle();
+    bool test_and_clear_lock_received();
 private:
     virtual void timer_fired() override;
     struct detached_state;
@@ -449,6 +451,10 @@ private:
     //
     //   waiting       waking       async    wake()
     //   waiting       running      sync     wait_until cancelled
+    //   waiting       sending_lock async    wake_lock()   used for ensuring the thread does not wake
+    //                                                     up while we call receive_lock()
+    //
+    //   sending_lock waiting       async    wake()        after receive_lock() is complete
     //
     //   running       waiting      sync     wait()
     //   running       queued       sync     context switch
@@ -467,6 +473,7 @@ private:
         prestarted,
         unstarted,
         waiting,
+        sending_lock,
         running,
         queued,
         waking, // between waiting and queued
@@ -481,6 +488,8 @@ private:
         explicit detached_state(thread* t) : t(t) {}
         thread* t;
         cpu* _cpu;
+        mutex* wait_mtx = nullptr; // send_lock() was called with this if set
+        bool received_lock;        // we called receive_lock() on wait_mtx
         std::atomic<status> st = { status::unstarted };
     };
     std::unique_ptr<detached_state> _detached_state;
@@ -639,6 +648,17 @@ void init(std::function<void ()> cont);
 
 void init_tls(elf::tls_data tls);
 
+bool thread::test_and_clear_lock_received()
+{
+    auto& st = *_detached_state;
+    if (st.received_lock) {
+        st.received_lock = false;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 inline void acquire(mutex_t& mtx)
 {
     mutex_lock(&mtx);
@@ -680,7 +700,9 @@ void thread::do_wait_until(Mutex& mtx, Pred pred)
             release(mtx);
             me->wait();
         }
-        acquire(mtx);
+        if (!me->test_and_clear_lock_received()) {
+            acquire(mtx);
+        }
     }
 }
 
