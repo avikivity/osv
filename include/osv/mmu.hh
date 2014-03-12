@@ -68,25 +68,25 @@ enum {
     mmap_jvm_heap    = 1ul << 4,
 };
 
-struct map_page_ops;
-
 class vma {
 public:
-    vma(addr_range range, unsigned perm, unsigned flags, bool map_dirty, map_page_ops *page_ops = nullptr);
+    vma(addr_range range, unsigned perm, unsigned flags, bool map_dirty);
     virtual ~vma();
     void set(uintptr_t start, uintptr_t end);
     void protect(unsigned perm);
     uintptr_t start() const;
     uintptr_t end() const;
+    addr_range range() const { return _range; }
     void* addr() const;
     uintptr_t size() const;
     unsigned perm() const;
     unsigned flags() const;
-    virtual void fault(uintptr_t addr, exception_frame *ef);
+    virtual void fault(uintptr_t addr, exception_frame *ef); // FIXME: devirtualize?
     virtual void split(uintptr_t edge) = 0;
     virtual error sync(uintptr_t start, uintptr_t end) = 0;
     virtual int validate_perm(unsigned perm) { return 0; }
-    virtual map_page_ops* page_ops();
+    virtual size_t populate(addr_range ar) = 0;
+    virtual size_t unpopulate(addr_range ar) = 0;
     void update_flags(unsigned flag);
     bool has_flags(unsigned flag);
     template<typename T> ulong operate_range(T mapper, void *start, size_t size);
@@ -98,7 +98,6 @@ protected:
     unsigned _perm;
     unsigned _flags;
     bool _map_dirty;
-    map_page_ops *_page_ops;
 public:
     boost::intrusive::set_member_hook<> _vma_list_hook;
 };
@@ -120,15 +119,18 @@ public:
     anon_vma(addr_range range, unsigned perm, unsigned flags);
     virtual void split(uintptr_t edge) override;
     virtual error sync(uintptr_t start, uintptr_t end) override;
+    virtual size_t populate(addr_range ar) override;
+    virtual size_t unpopulate(addr_range ar) override;
 };
 
 class file_vma : public vma {
 public:
-    file_vma(addr_range range, unsigned perm, fileref file, f_offset offset, bool shared, map_page_ops *page_ops);
-    ~file_vma();
+    file_vma(addr_range range, unsigned perm, fileref file, f_offset offset, bool shared);
     virtual void split(uintptr_t edge) override;
     virtual error sync(uintptr_t start, uintptr_t end) override;
     virtual int validate_perm(unsigned perm);
+    virtual size_t populate(addr_range ar) override;
+    virtual size_t unpopulate(addr_range ar) override;
 private:
     f_offset offset(uintptr_t addr);
     fileref _file;
@@ -143,6 +145,8 @@ public:
     virtual void split(uintptr_t edge) override;
     virtual error sync(uintptr_t start, uintptr_t end) override;
     virtual void fault(uintptr_t addr, exception_frame *ef) override;
+    virtual size_t populate(addr_range ar) override;
+    virtual size_t unpopulate(addr_range ar) override;
     void detach_balloon();
 private:
     balloon *_balloon;
@@ -150,16 +154,22 @@ private:
     unsigned _real_flags;
 };
 
+class shm_vma;
+class shm_page_provider;
+
 class shm_file final : public special_file {
     size_t _size;
     std::unordered_map<uintptr_t, void*> _pages;
+private:
+    void* get_page(uintptr_t offset, size_t size);
+    void put_page(uintptr_t offset, size_t size);
 public:
     shm_file(size_t size, int flags);
     virtual int stat(struct stat* buf) override;
     virtual int close() override;
-    virtual file_vma* mmap(addr_range range, unsigned flags, unsigned perm, off_t offset) override;
-    virtual void* map(uintptr_t offset, size_t size) override;
-    virtual void unmap(uintptr_t offset, size_t size) override;
+    virtual std::unique_ptr<vma> mmap(addr_range range, unsigned flags, unsigned perm, off_t offset) override;
+    friend shm_vma;
+    friend shm_page_provider;
 };
 
 void* map_file(const void* addr, size_t size, unsigned flags, unsigned perm,

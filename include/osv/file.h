@@ -48,6 +48,7 @@
 #include <vector>
 #include <osv/addr_range.hh>
 #include <osv/rcu.hh>
+#include <osv/error.h>
 
 #endif
 
@@ -71,8 +72,9 @@ struct pollreq;
 #ifdef __cplusplus
 
 namespace mmu {
-class file_vma;
-file_vma* default_file_mmap(file* file, addr_range range, unsigned flags, unsigned perm, off_t offset);
+
+class vma;
+
 };
 
 /*
@@ -93,11 +95,10 @@ struct file {
 	virtual int chmod(mode_t mode) = 0;
 	virtual void poll_install(pollreq& pr) {}
 	virtual void poll_uninstall(pollreq& pr) {}
-    virtual mmu::file_vma* mmap(addr_range range, unsigned flags, unsigned perm, off_t offset) {
-        return mmu::default_file_mmap(this, range, flags, perm, offset);
+	virtual std::unique_ptr<mmu::vma> mmap(addr_range range, unsigned flags, unsigned perm, off_t offset) {
+		throw make_error(ENODEV);
 	}
-    virtual void* map(uintptr_t offset, size_t size) { throw ENOSYS;}
-    virtual void unmap(uintptr_t offset, size_t size) { throw ENOSYS;}
+
 
 	int		f_flags;	/* open flags */
 	int		f_count;	/* reference count, see below */
