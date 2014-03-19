@@ -374,6 +374,18 @@ bool net::bad_rx_csum(struct mbuf* m, struct net_hdr* hdr)
     return false;
 }
 
+static unsigned packet_limiter = 0;
+
+template <typename... T>
+void debug_limited(T&&... a)
+{
+    if (packet_limiter > 200) {
+        return;
+    }
+    ++packet_limiter;
+    debug(std::forward<T>(a)...);
+}
+
 void net::receiver()
 {
     vring* vq = _rxq.vqueue;
@@ -399,11 +411,11 @@ void net::receiver()
             // TODO: should get out of the loop
             vq->get_buf_finalize();
 
-            debug("packet @ %p len %d\n", page, len);
-            for (auto i = 0u; i < len && i < 40; ++i) {
-                debug(" %02x", (int)((unsigned char*)page)[i]);
+            debug_limited("packet @ %p len %d\n", page, len);
+            for (auto i = 0u; i < len && i < 400; ++i) {
+                debug_limited(" %02x", (int)((unsigned char*)page)[i]);
             }
-            debug("\n");
+            debug_limited("\n");
 
             // Bad packet/buffer - discard and continue to the next one
             if (len < _hdr_size + ETHER_HDR_LEN) {
@@ -444,9 +456,10 @@ void net::receiver()
             if ((_ifn->if_capenable & IFCAP_RXCSUM) &&
                 (mhdr->hdr.flags &
                  net_hdr::VIRTIO_NET_HDR_F_NEEDS_CSUM)) {
-                if (bad_rx_csum(m_head, &mhdr->hdr))
+                if (bad_rx_csum(m_head, &mhdr->hdr)) {
+                    debug_limited("bad csum\n");
                     csum_err++;
-                else
+                } else
                     csum_ok++;
 
             }
