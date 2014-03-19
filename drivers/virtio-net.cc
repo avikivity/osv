@@ -379,7 +379,7 @@ static unsigned packet_limiter = 0;
 template <typename... T>
 void debug_limited(T&&... a)
 {
-    if (packet_limiter > 200) {
+    if (packet_limiter > 20000) {
         return;
     }
     ++packet_limiter;
