@@ -399,8 +399,15 @@ void net::receiver()
             // TODO: should get out of the loop
             vq->get_buf_finalize();
 
+            debug("packet @ %p len %d\n", page, len);
+            for (auto i = 0u; i < len && i < 40; ++i) {
+                debug(" %02x", (int)((unsigned char*)page)[i]);
+            }
+            debug("\n");
+
             // Bad packet/buffer - discard and continue to the next one
             if (len < _hdr_size + ETHER_HDR_LEN) {
+                debug("dropped\n");
                 rx_drops++;
                 memory::free_page(page);
 
