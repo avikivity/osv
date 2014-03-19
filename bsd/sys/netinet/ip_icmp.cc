@@ -361,6 +361,8 @@ icmp_input(struct mbuf *m, int off)
 	void (*ctlfunc)(int, struct bsd_sockaddr *, void *);
 	int fibnum;
 
+	debug("icmp_input reached\n");
+
 	/*
 	 * Locate icmp structure in mbuf, and check
 	 * that not corrupted and of at least minimum length.
@@ -521,6 +523,7 @@ icmp_input(struct mbuf *m, int off)
 		break;
 
 	case ICMP_ECHO:
+	        debug("in icmp echo\n");
 		if (!V_icmpbmcastecho
 		    && (m->m_hdr.mh_flags & (M_MCAST | M_BCAST)) != 0) {
 			ICMPSTAT_INC(icps_bmcastecho);
@@ -590,6 +593,7 @@ icmp_input(struct mbuf *m, int off)
 		}
 		ifa_free(&ia->ia_ifa);
 reflect:
+    debug("going to icmp reflect\n");
 		ip->ip_len += hlen;	/* since ip_input deducts this */
 		ICMPSTAT_INC(icps_reflect);
 		ICMPSTAT_INC(icps_outhist[icp->icmp_type]);
@@ -692,6 +696,7 @@ icmp_reflect(struct mbuf *m)
 	struct mbuf *opts = 0;
 	int optlen = (ip->ip_hl << 2) - sizeof(struct ip);
 
+	debug("in icmp_reflect\n");
 	if (IN_MULTICAST(ntohl(ip->ip_src.s_addr)) ||
 	    IN_EXPERIMENTAL(ntohl(ip->ip_src.s_addr)) ||
 	    IN_ZERONET(ntohl(ip->ip_src.s_addr)) ) {
@@ -891,6 +896,7 @@ icmp_send(struct mbuf *m, struct mbuf *opts)
 	register int hlen;
 	register struct icmp *icp;
 
+	debug("icmp_send\n");
 	hlen = ip->ip_hl << 2;
 	m->m_hdr.mh_data += hlen;
 	m->m_hdr.mh_len -= hlen;
