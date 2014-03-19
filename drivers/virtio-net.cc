@@ -459,8 +459,10 @@ void net::receiver()
                 if (bad_rx_csum(m_head, &mhdr->hdr)) {
                     debug_limited("bad csum\n");
                     csum_err++;
-                } else
+                } else {
+                    debug_limited("csum ok\n");
                     csum_ok++;
+                }
 
             }
 
