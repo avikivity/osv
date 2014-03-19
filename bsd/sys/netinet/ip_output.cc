@@ -58,6 +58,8 @@
 #include <bsd/sys/netinet/ip_var.h>
 #include <bsd/sys/netinet/ip_options.h>
 
+#include <osv/debug.hh>
+
 #ifdef IPSEC
 #include <netinet/ip_ipsec.h>
 #include <netipsec/ipsec.h>
@@ -116,6 +118,7 @@ ip_output(struct mbuf *m, struct mbuf *opt, struct route *ro, int flags,
 #endif
 	M_ASSERTPKTHDR(m);
 
+	debug("ip_output\n");
 	if (inp != NULL) {
 		INP_LOCK_ASSERT(inp);
 		M_SETFIB(m, inp->inp_inc.inc_fibnum);
@@ -201,6 +204,7 @@ again:
 		dst->sin_len = sizeof(*dst);
 		dst->sin_addr = ip->ip_dst;
 	}
+        debug("ip_output: rte %p\n", rte);
 	/*
 	 * If routing to interface only, short circuit routing lookup.
 	 * The use of an all-ones broadcast address implies this; an
@@ -643,6 +647,7 @@ passout:
 			 */
 			m->m_hdr.mh_flags &= ~(M_PROTOFLAGS);
 
+			debug("going to if_output\n");
 			error = (*ifp->if_output)(ifp, m,
 			    (struct bsd_sockaddr *)dst, ro);
 		} else

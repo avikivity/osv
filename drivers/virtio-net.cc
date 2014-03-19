@@ -567,6 +567,7 @@ int net::tx_locked(struct mbuf* m_head, bool flush)
 {
     DEBUG_ASSERT(_tx_ring_lock.owned(), "_tx_ring_lock is not locked!");
 
+    debug("virtio::net::tx_locked\n");
     struct mbuf* m;
     net_req* req = new net_req;
     vring* vq = _txq.vqueue;
