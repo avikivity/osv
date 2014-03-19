@@ -21,7 +21,7 @@ logger* logger::_instance = nullptr;
 char debug_buffer[DEBUG_BUFFER_SIZE];
 int debug_buffer_idx = 0;
 bool debug_buffer_full = false;
-bool verbose = false;
+bool verbose = true;
 
 logger::logger()
 {
