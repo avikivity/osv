@@ -384,6 +384,8 @@ protected:
     virtual void unload_segment(const Elf64_Phdr& phdr);
     virtual void read(Elf64_Off offset, void* data, size_t size) override;
 private:
+    bool mlocked();
+private:
     ::fileref _f;
 };
 
