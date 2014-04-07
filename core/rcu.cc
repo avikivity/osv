@@ -219,4 +219,20 @@ void rcu_synchronize()
     s.wait();
 }
 
+void rcu_flush()
+{
+    semaphore s{0};
+    for (auto c : sched::cpus) {
+        sched::thread t([&] {
+            rcu_defer([&] { s.post(); });
+            // rcu_defer() might not wake the cleanup thread until enough deferred
+            // callbacks have accumulated, so wake it up now.
+            percpu_quiescent_state_thread->wake();
+        }, sched::thread::attr().pin(c));
+        t.start();
+        t.join();
+    }
+    s.wait(sched::cpus.size());
+}
+
 }
