@@ -157,10 +157,11 @@ build-c = $(CC) $(CFLAGS) -c -o $@ $<
 q-build-c = $(call quiet, $(build-c), CC $@)
 build-s = $(CXX) $(CXXFLAGS) $(ASFLAGS) -c -o $@ $<
 q-build-s = $(call quiet, $(build-s), AS $@)
-build-so = $(CC) $(CFLAGS) -o $@ $^
+build-so = $(CC) $(CFLAGS) -o $@ $^ $(opt-so-add-segments)
 q-build-so = $(call quiet, $(build-so), CC $@)
 adjust-deps = sed -i 's! $(subst .,\.,$<)\b! !g' $(@:.o=.d)
 q-adjust-deps = $(call very-quiet, $(adjust-deps))
+opt-so-add-segments = $(if $(osv-mlock), && objcopy --add-section .note.osv-mlock=/dev/null $@)
 
 %.o: %.cc
 	$(makedir)
@@ -209,6 +210,9 @@ boost-tests += tests/tst-stat.so
 boost-tests += tests/tst-wait-for.so
 boost-tests += tests/tst-bsd-tcp1.so
 boost-tests += tests/tst-async.so
+boost-tests += tests/tst-rcu-list.so
+
+tests/tst-rcu-list.so: osv-mlock = 1
 
 java_tests := tests/hello/Hello.class
 
