@@ -953,6 +953,10 @@ void program::remove_object(object *ef)
     new_modules->subs++;
     _modules_rcu.assign(new_modules.release());
     osv::rcu_dispose(old_modules);
+
+    // ensure that any module rcu callbacks are completed before we delete the module
+    osv::rcu_flush();
+
     // We want to unload and delete ef, but need to delay that until no
     // concurrent dl_iterate_phdr() is still using the modules it got from
     // modules_get().
