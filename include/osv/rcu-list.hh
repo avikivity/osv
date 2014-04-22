@@ -130,6 +130,7 @@ public:
     template <typename... Args>
     void emplace_front(Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)));
     void erase(iterator i) noexcept;
+    void splice_front(mutable_list& victim, iterator victim_element) noexcept;
     static_assert(noexcept(static_cast<T*>(nullptr)->~T()), "T::~T() may not throw");
     friend rcu_list<T>;
 };
@@ -172,6 +173,17 @@ void rcu_list<T>::mutable_list::erase(rcu_list<T>::mutable_list::iterator i) noe
     auto n = i._p->next.read_by_owner();
     i._pp->assign(n);
     rcu_dispose(cur);
+}
+
+/// Moves \c victim_element from \c victim to *this; \c victim may not be read during this operation.
+template <typename T>
+inline
+void rcu_list<T>::mutable_list::splice_front(mutable_list& victim, iterator victim_element) noexcept
+{
+    auto p = victim_element._p;
+    victim_element._pp->assign(p->next.read_by_owner());
+    p->next.assign(_first.read_by_owner());
+    _first.assign(p);
 }
 
 }
