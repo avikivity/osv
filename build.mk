@@ -211,6 +211,9 @@ boost-tests += tests/tst-bsd-tcp1.so
 boost-tests += tests/tst-async.so
 boost-tests += tests/tst-rcu-list.so
 boost-tests += tests/tst-tcp-listen.so
+boost-tests += tests/tst-rcu-hashtable.so
+
+tests/tst-rcu-hashtable.so: COMMON += -Wl,-z,now
 
 java_tests := tests/hello/Hello.class
 
