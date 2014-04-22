@@ -26,7 +26,7 @@ private:
     using pointer = rcu_ptr<element>;
     struct element {
         element(element* next, const T& data) noexcept(noexcept(T(data)))
-                : next(next.read_by_owner()), data(data) {}
+                : next(next), data(data) {}
         template <typename... Args>
         element(element* next, Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)))
             : next(next), data(std::forward<Args>(args)...) {}
@@ -111,8 +111,8 @@ public:
         explicit iterator() noexcept : _pp(nullptr), _p(nullptr) {}
         explicit iterator(pointer& pp) noexcept : _pp(&pp), _p(pp.read_by_owner()) {}
     public:
-        T& operator*() const noexcept { return *_p; }
-        T* operator->() const noexcept { return _p; }
+        T& operator*() const noexcept { return _p->data; }
+        T* operator->() const noexcept { return *_p->data; }
         iterator& operator++() noexcept { _pp = &_p->next; _p = _pp->read_by_owner(); return *this; }
         iterator& operator++(int) noexcept { auto old = *this; ++*this; return old; }
         bool operator==(const iterator& other) const noexcept { return _p == other._p; }
