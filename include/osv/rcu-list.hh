@@ -90,6 +90,7 @@ private:
 public:
     iterator begin() const noexcept { return iterator(_first.read()); }
     iterator end() const noexcept { return iterator(nullptr); }
+    static iterator end_iterator() noexcept { return iterator(nullptr); }
 };
 
 template <typename T>
@@ -123,6 +124,8 @@ private:
 public:
     iterator begin() noexcept { return iterator(_first); }
     iterator end() noexcept { return iterator(); }
+    static iterator end_iterator() noexcept { return iterator(); }
+    T& front() noexcept { return *begin(); }
     void push_front(const T& data) noexcept(noexcept(T(data)));
     template <typename... Args>
     void emplace_front(Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)));
