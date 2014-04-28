@@ -76,9 +76,9 @@ public:
         T& operator*() const { return *_in_bucket; }
         T* operator->() const { return &*_in_bucket; }
         iterator& operator++() {
-            if (++_in_bucket == _which_bucket->end()) {
+            if (++_in_bucket ==  bucket_type::read_only_list::end_iterator()) {
                 ++_which_bucket;
-                _in_bucket = _which_bucket->begin();
+                _in_bucket = _which_bucket->for_read().begin();
             }
             return *this;
         }
@@ -103,7 +103,7 @@ public:
             auto list = bucket->for_read(); // must happen just once
             return { bucket, list.begin() };
         } else {
-            return { bucket, bucket_type::end_iterator() };
+            return { bucket, bucket_type::read_only_list::end_iterator() };
         }
     }
     iterator end() {
@@ -140,16 +140,17 @@ public:
         typename bucket_array_type::iterator _which_bucket;
         typename bucket_type::mutable_list::iterator _in_bucket;
     public:
-        iterator(typename bucket_array_type::iterator which_bucket,
+        iterator(mutable_table& mht,
+                 typename bucket_array_type::iterator which_bucket,
                  typename bucket_type::mutable_list::iterator in_bucket)
-            : _which_bucket(which_bucket), _in_bucket(in_bucket) {}
+            : _mht(mht), _which_bucket(which_bucket), _in_bucket(in_bucket) {
+            skip_empty();
+        }
         T& operator*() const { return *_in_bucket; }
         T* operator->() const { return &*_in_bucket; }
         iterator& operator++() {
-            if (++_in_bucket == _which_bucket->end()) {
-                ++_which_bucket;
-                _in_bucket = _which_bucket->begin();
-            }
+            ++_in_bucket;
+            skip_empty();
             return *this;
         }
         iterator& operator++(int) {
@@ -164,17 +165,25 @@ public:
         bool operator!=(const iterator& x) const {
             return !operator==(x);
         }
+    private:
+        void skip_empty() {
+            while (_in_bucket == _which_bucket->by_owner() && _which_bucket != _ht.end()) {
+                ++_which_bucket;
+                _in_bucket = _which_bucket->by_owner().begin();
+            }
+        }
+        mutable_table& _mht;
         friend mutable_table;
     };
 public:
     explicit mutable_table(rcu_hashtable& h) : _table(h) {}
     iterator begin() {
-        auto bucket = _table.ptr().read_by_owner->begin();
-        if (bucket != _table.ptr().read_by_owner->end()) {
+        auto bucket = _table.ptr().read_by_owner()->begin();
+        if (bucket != _table.ptr().read_by_owner()->end()) {
             auto list = bucket->by_owner();
             return { bucket, list.begin() };
         } else {
-            return { bucket, bucket_type::end_iterator() };
+            return { bucket, bucket_type::mutable_list::end_iterator() };
         }
     }
     iterator end() {

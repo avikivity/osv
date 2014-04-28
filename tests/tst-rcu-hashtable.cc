@@ -16,6 +16,7 @@
 #include <osv/elf.hh>
 #include <iostream>
 #include <osv/printf.hh>
+#include <unordered_map>
 
 struct test_element {
     test_element(unsigned val) : _val(val), _state(state::initialized) {
@@ -92,33 +93,57 @@ void do_reads(osv::detail::rcu_hashtable<test_element>& ht,
 {
     while (running.load(std::memory_order_relaxed)) {
         std::default_random_engine generator;
+        std::discrete_distribution<unsigned> gen_action({1.0, 0.00001});
         std::uniform_int_distribution<unsigned> gen_value(0, range - 1);
-        auto value = gen_value(generator);
+        auto action = gen_action(generator);
         WITH_LOCK(osv::rcu_read_lock) {
-            element_status before = status[value];
             auto rht = ht.for_read();
-            auto hash = [](size_t value) -> size_t { return value; };
-            auto compare = [](unsigned x, const test_element& y) { return x == y._val; };
-            auto i = rht.find(value, hash, compare);
-            element_status after = status[value];
-            if (i == rht.end()) {
-                auto lower_bound = std::max(before.insertions_lower_bound - after.removals_upper_bound, 0);
-                if (lower_bound > 0) {
-                    DROP_LOCK(osv::rcu_read_lock) {
-                        debug("before: %s\nafter: %s\n", before, after);
+            switch (action) {
+            case 0: { // lookup
+                auto value = gen_value(generator);
+                element_status before = status[value];
+                auto hash = [](size_t value) -> size_t { return value; };
+                auto compare = [](unsigned x, const test_element& y) { return x == y._val; };
+                auto i = rht.find(value, hash, compare);
+                element_status after = status[value];
+                if (i == rht.end()) {
+                    auto lower_bound = std::max(before.insertions_lower_bound - after.removals_upper_bound, 0);
+                    if (lower_bound > 0) {
+                        DROP_LOCK(osv::rcu_read_lock) {
+                            debug("before: %s\nafter: %s\n", before, after);
+                        }
                     }
-                }
-                assert(lower_bound == 0);
-            } else {
-                i->validate();
-                auto upper_bound = after.insertions_upper_bound - before.removals_lower_bound;
-                if (upper_bound < 1) {
-                    DROP_LOCK(osv::rcu_read_lock) {
-                        debug("before: %s\nafter: %s\n", before, after);
+                    assert(lower_bound == 0);
+                } else {
+                    i->validate();
+                    auto upper_bound = after.insertions_upper_bound - before.removals_lower_bound;
+                    if (upper_bound < 1) {
+                        DROP_LOCK(osv::rcu_read_lock) {
+                            debug("before: %s\nafter: %s\n", before, after);
+                        }
                     }
+                    assert(upper_bound >= 1);
+                    assert(*i == value);
                 }
-                assert(upper_bound >= 1);
-                assert(*i == value);
+                break;
+            }
+            case 1: { // iterate
+                std::unordered_map<unsigned, int> m;
+                std::vector<element_status> before{status};
+                for (auto& te : rht) {
+                    te.validate();
+                    ++m[te._val];
+                }
+                std::vector<element_status> after{status};
+                for (unsigned i = 0; i < range; ++i) {
+                    int n = m.count(i) ? m[i] : 0;
+                    assert(n >= before[i].insertions_lower_bound - after[i].removals_upper_bound);
+                    assert(n <= before[i].insertions_upper_bound - after[i].removals_lower_bound);
+                }
+                break;
+            }
+            default:
+                abort();
             }
         }
     }
@@ -144,7 +169,7 @@ BOOST_AUTO_TEST_CASE(test_rcu_hashtable) {
                 t->start();
             }
             std::default_random_engine generator;
-            std::uniform_int_distribution<unsigned> gen_action(0, 1);
+            std::discrete_distribution<unsigned> gen_action({1.0, 1.0, 0.00001});
             std::uniform_int_distribution<unsigned> gen_value(0, range - 1);
             auto mht = ht.by_owner();
             size_t size = 0;
@@ -176,6 +201,19 @@ BOOST_AUTO_TEST_CASE(test_rcu_hashtable) {
                         mht.erase(i);
                         ++s.removals_lower_bound;
                         --size;
+                    }
+                    break;
+                }
+                case 2: { // iterate
+                    std::unordered_map<unsigned, int> m;
+                    for (auto& te : mht) {
+                        te.validate();
+                        ++m[te._val];
+                    }
+                    for (unsigned i = 0; i < range; ++i) {
+                        auto n = m.count(i) ? m[i] : 0;
+                        auto& s = status[i];
+                        BOOST_REQUIRE(n == (s.insertions_lower_bound - s.removals_lower_bound));
                     }
                     break;
                 }
