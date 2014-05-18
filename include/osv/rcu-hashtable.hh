@@ -22,34 +22,50 @@ template <typename T, typename Hash = std::hash<T>, typename Compare = std::equa
 class rcu_hashtable {
 private:
     using value_type = T;
-    using bucket_type = rcu_list<T>;
-    struct bucket_array_type : std::vector<bucket_type> {
-        explicit bucket_array_type(size_t n = 1) : std::vector<bucket_type>(n) {}
+    struct element_base_type;
+    struct element_type;
+    using pointer = rcu_ptr<element_base_type>;
+    struct element_base_type {
+        explicit element_base_type(element_base_type* next) : next(next) {}
+        pointer next;
+    };
+    struct element_type : element_base_type {
+        template <typename... Args>
+        explicit element_type(element_type* next, Args&&... args)
+            : pointer(next), data(std::forward<Args>(args)...) {}
+        T data;
+    };
+    struct storage_type {
+        explicit storage_type(size_t n = 1) : buckets(n) {}
+        // points to element *before* bucket, so we can insert into first position
+        // in bucket
+        std::vector<pointer> buckets;
+        element_base_type list;
         size_t total_elements = 0;
     };
-    using bucket_array_ptr_type = rcu_ptr<bucket_array_type, rcu_deleter<bucket_array_type>>;
+    using storage_ptr_type = rcu_ptr<storage, rcu_deleter<storage>>;
     // ugly workaround for sizeof(empty struct) != 0
-    struct bucket_array_ptr_plus_hash_plus_compare : private Hash, private Compare {
-        bucket_array_ptr_plus_hash_plus_compare(bucket_array_type* ptr,
+    struct storage_ptr_plus_hash_plus_compare : private Hash, private Compare {
+        storage_ptr_plus_hash_plus_compare(storage_type* ptr,
                 const Hash& hash,
                 const Compare& compare)
             : Hash(hash), Compare(compare), _ptr(ptr) {}
-        bucket_array_ptr_type& ptr() { return _ptr; }
+        storage_ptr_type& ptr() { return _ptr; }
         Hash& hash() { return *this; }
         Compare& compare() { return *this; }
-        bucket_array_ptr_type _ptr;
+        stoarge_ptr_type _ptr;
     };
 private:
-    bucket_array_ptr_plus_hash_plus_compare _ba_hash_compare;
-    bucket_array_ptr_type& ptr() { return _ba_hash_compare.ptr(); }
-    Hash& hash() { return _ba_hash_compare.hash(); }
-    Compare& compare() { return _ba_hash_compare.compare(); }
+    storage_ptr_plus_hash_plus_compare _storage_hash_compare;
+    storage_ptr_type& ptr() { return _storage_hash_compare.ptr(); }
+    Hash& hash() { return _storage_hash_compare.hash(); }
+    Compare& compare() { return _storage_hash_compare.compare(); }
 public:
     class read_only_table;
     class mutable_table;
 public:
     rcu_hashtable(const Hash& hash = Hash(), const Compare& compare = Compare())
-        : _ba_hash_compare(new bucket_array_type, hash, compare) {}
+        : _storage_hash_compare(new storage, hash, compare) {}
     read_only_table for_read();
     mutable_table by_owner();
 private:
@@ -61,7 +77,7 @@ template <typename T, typename Hash, typename Compare>
 class rcu_hashtable<T, Hash, Compare>::read_only_table {
 private:
     rcu_hashtable& _table;
-    bucket_array_type& _buckets;
+    storage_type& _buckets;
 public:
     class iterator;
     friend iterator;
@@ -137,6 +153,7 @@ public:
     friend iterator;
     class iterator {
     private:
+        mutable_table& _mht;
         typename bucket_array_type::iterator _which_bucket;
         typename bucket_type::mutable_list::iterator _in_bucket;
     public:
@@ -167,12 +184,13 @@ public:
         }
     private:
         void skip_empty() {
-            while (_in_bucket == _which_bucket->by_owner() && _which_bucket != _ht.end()) {
+            while (_in_bucket == _which_bucket->by_owner().end() && _which_bucket != _mht._table.end())) {
                 ++_which_bucket;
-                _in_bucket = _which_bucket->by_owner().begin();
+                if (_which_bucket != _mht.end()) {
+                    _in_bucket = _which_bucket->by_owner().begin();
+                }
             }
         }
-        mutable_table& _mht;
         friend mutable_table;
     };
 public:
