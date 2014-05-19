@@ -36,14 +36,15 @@ private:
         T data;
     };
     struct storage_type {
-        explicit storage_type(size_t n = 1) : buckets(n) {}
+        explicit storage_type(size_t n = 1) : buckets(n, &list), list(nullptr) {}
         // points to element *before* bucket, so we can insert into first position
         // in bucket
         std::vector<pointer> buckets;
+        // list of all data elements in bucket order
         element_base_type list;
         size_t total_elements = 0;
     };
-    using storage_ptr_type = rcu_ptr<storage, rcu_deleter<storage>>;
+    using storage_ptr_type = rcu_ptr<storage_type, rcu_deleter<storage_type>>;
     // ugly workaround for sizeof(empty struct) != 0
     struct storage_ptr_plus_hash_plus_compare : private Hash, private Compare {
         storage_ptr_plus_hash_plus_compare(storage_type* ptr,
