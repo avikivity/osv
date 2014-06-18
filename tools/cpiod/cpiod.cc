@@ -43,7 +43,7 @@ public:
         mkdirp(name.c_str(), 0755);
     }
     virtual void add_symlink(string oldpath, string newpath) override {
-        cout << "Skipping symlink " << oldpath << "...\n";
+        symlink(oldpath.c_str(), newpath.c_str());
     }
 
 private:
