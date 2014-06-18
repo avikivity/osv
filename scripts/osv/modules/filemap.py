@@ -78,7 +78,7 @@ class FileMap(object):
             if not m.guest_path:
                 raise Exception('Unfinished mapping for %s. Did you forget to call .to()?' % root)
 
-            if not os.path.exists(root):
+            if not os.path.lexists(root):
                 raise Exception('Path does not exist: ' + root)
 
             if os.path.isfile(root):
