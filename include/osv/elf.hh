@@ -265,7 +265,8 @@ class object: public std::enable_shared_from_this<elf::object> {
 public:
     explicit object(program& prog, std::string pathname);
     virtual ~object();
-    void load_needed(std::vector<std::shared_ptr<object>>& loaded_objects);
+    void load_needed(std::vector<std::shared_ptr<object>>& loaded_objects,
+            std::vector<std::string> extra_path);
     void unload_needed();
     void relocate();
     void set_base(void* base);

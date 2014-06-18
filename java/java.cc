@@ -80,7 +80,9 @@ int main(int argc, char **argv)
 {
     auto prog = elf::get_program();
     // The JVM library remains loaded as long as jvm_so is in scope.
-    auto jvm_so = prog->get_library(JVM_PATH);
+    auto jvm_so = prog->get_library(JVM_PATH, {
+            "/usr/lib/jvm/jre/lib/amd64/jli",
+    });
 
     auto JNI_GetDefaultJavaVMInitArgs
         = prog->lookup_function<void (void*)>("JNI_GetDefaultJavaVMInitArgs");

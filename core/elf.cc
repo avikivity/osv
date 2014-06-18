@@ -748,7 +748,8 @@ static std::string dirname(std::string path)
     return path.substr(0, pos);
 }
 
-void object::load_needed(std::vector<std::shared_ptr<object>>& loaded_objects)
+void object::load_needed(std::vector<std::shared_ptr<object>>& loaded_objects,
+        std::vector<std::string> extra_path)
 {
     std::vector<std::string> rpath;
     if (dynamic_exists(DT_RPATH)) {
@@ -757,6 +758,7 @@ void object::load_needed(std::vector<std::shared_ptr<object>>& loaded_objects)
         boost::split(rpath, rpath_str, boost::is_any_of(":"));
     }
     auto needed = dynamic_str_array(DT_NEEDED);
+    rpath.insert(rpath.end(), extra_path.begin(), extra_path.end());
     for (auto lib : needed) {
         auto obj = _prog.load_object(lib, rpath, loaded_objects);
         if (obj) {
@@ -956,7 +958,7 @@ program::load_object(std::string name, std::vector<std::string> extra_path,
         _next_alloc = ef->end();
         add_debugger_obj(ef.get());
         loaded_objects.push_back(ef);
-        ef->load_needed(loaded_objects);
+        ef->load_needed(loaded_objects, extra_path);
         ef->relocate();
         ef->fix_permissions();
         _files[name] = ef;

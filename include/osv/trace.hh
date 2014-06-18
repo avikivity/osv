@@ -200,7 +200,7 @@ struct object_serializer<T, typename std::enable_if<is_blob<T>::value>::type> {
 
 template <>
 struct object_serializer<const char*> {
-    static constexpr size_t max_len = 50;
+    static constexpr size_t max_len = 250;
     [[gnu::always_inline]]
     void serialize(const char* val, void* _buffer) {
 
@@ -210,7 +210,7 @@ struct object_serializer<const char*> {
         auto buffer = static_cast<unsigned char*>(_buffer);
         size_t len = 0;
         unsigned char tmp;
-        // destination is in "pascal string" layout
+        // destination is in "pascal string" layout, uleb128 encoded
         while (len < max_len -1 && (tmp = try_load(val + len, '?')) != 0) {
             buffer[len++ + 1] = tmp;
         }

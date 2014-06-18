@@ -6,6 +6,8 @@ usr_files = FileMap()
 
 api.require('fonts')
 
+print 'building java module'
+
 jdkdir = os.path.basename(os.path.expandvars('${jdkbase}'))
 if not os.path.exists('diskimage/usr/lib/jvm'):
     os.makedirs('diskimage/usr/lib/jvm')
@@ -23,5 +25,6 @@ usr_files.add('${jdkbase}').to('/usr/lib/jvm/' + jdkdir) \
     .include('jre/**') \
     .exclude('jre/lib/security/cacerts') \
     .exclude('jre/lib/audio/**')
+print 'adding symlinks'
 usr_files.add(os.getcwd() + '/diskimage/usr/lib/jvm/java').to('/usr/lib/jvm/java')
 usr_files.add(os.getcwd() + '/diskimage/usr/lib/jvm/jre').to('/usr/lib/jvm/jre')

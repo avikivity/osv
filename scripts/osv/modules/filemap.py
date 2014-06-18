@@ -53,6 +53,7 @@ class FileMap(object):
     def add(self, host_path, to=None):
         mapping = Mapping(os.path.expandvars(host_path))
         self.mappings.append(mapping)
+        print('adding ' + host_path)
         return mapping
 
     def expand(self):

@@ -869,7 +869,7 @@ def setup_libstdcxx():
 
 def sig_to_string(sig):
     '''Convert a tracepoing signature to a string'''
-    return sig.replace('p', '50p')
+    return sig.replace('p', '250p')
 
 def align_down(v, pagesize):
     return v & ~(pagesize - 1)
