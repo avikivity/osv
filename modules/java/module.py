@@ -15,13 +15,18 @@ def symlink_force(dest, name):
         os.unlink(name)
     os.symlink(dest, name)
 
-symlink_force(jdkdir, 'diskimage/usr/lib/jvm/java')
-symlink_force(jdkdir + '/jre', 'diskimage/usr/lib/jvm/jre')
+symlink_force('java', 'diskimage/usr/lib/jvm/' + jdkdir)
+symlink_force('java/jre', 'diskimage/usr/lib/jvm/jre')
 
-usr_files.add('${jdkbase}').to('/usr/lib/jvm/' + jdkdir) \
+usr_files.add('${jdkbase}').to('/usr/lib/jvm/java') \
     .include('lib/**') \
     .include('jre/**') \
     .exclude('jre/lib/security/cacerts') \
     .exclude('jre/lib/audio/**')
-usr_files.add(os.getcwd() + '/diskimage/usr/lib/jvm/java').to('/usr/lib/jvm/java')
-usr_files.add(os.getcwd() + '/diskimage/usr/lib/jvm/jre').to('/usr/lib/jvm/jre')
+print 'adding symlinks'
+usr_files.add(os.getcwd() + '/diskimage/usr/lib/jvm/' + jdkdir) \
+    .to('/usr/lib/jvm/' + jdkdir) \
+    .allow_symlink()
+usr_files.add(os.getcwd() + '/diskimage/usr/lib/jvm/jre') \
+    .to('/usr/lib/jvm/jre') \
+    .allow_symlink()
