@@ -21,6 +21,7 @@ TRACEPOINT(trace_mutex_send_lock, "%p, wr=%p", mutex *, wait_record *);
 TRACEPOINT(trace_mutex_receive_lock, "%p", mutex *);
 TRACEPOINT(trace_mutex_stop_spin, "%d, %p, %p", int, void*, void*);
 TRACEPOINT(trace_mutex_stole, "%d", int);
+TRACEPOINT(trace_mutex_spin, "%d", int);
 
 void mutex::lock()
 {
@@ -48,18 +49,23 @@ void mutex::lock()
     }
 
 #if 1
-    auto old = owner.load(std::memory_order_relaxed);
-    for (int c = 0; c<100000; c++) {
+    for (int c = 0; c<100; c++) {
+        trace_mutex_spin(c);
 	auto o = owner.load(std::memory_order_relaxed);
+        auto h = handoff.load(std::memory_order_relaxed);
+        auto wq = !waitqueue.empty();
+        if (!o && !h && !wq) {
+            asm volatile ("pause");
+            continue;
+        }
 //	auto p = cpu.load(std::memory_order_relaxed);
-        if (old != o || (o && o->_detached_state.get()->st.load(std::memory_order_relaxed) != sched::thread::status::running))  {
+        if (wq || (o && o->_detached_state.get()->st.load(std::memory_order_relaxed) != sched::thread::status::running))  {
  //       if (p && o && o != p->curr) {
                 //trace_mutex_stop_spin(c, o, p->curr);
                 trace_mutex_stop_spin(c, o, nullptr);
 		break;
         }
 
-        auto h = handoff.load(std::memory_order_relaxed);
 	if (h) {
           if (handoff.compare_exchange_strong(h, 0U)) {
                     owner.store(current, std::memory_order_relaxed);
@@ -69,6 +75,7 @@ void mutex::lock()
                     return;
           }
         }
+	asm volatile("pause");
     }
 #endif
     // If we're here still here the lock is owned by a different thread.

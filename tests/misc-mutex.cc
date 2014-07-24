@@ -25,8 +25,8 @@ static void increment_thread(int id, T *m, long len, volatile long *shared)
 {
     for(int i=0; i<len; i++){
         m->lock();
-        assert(m->getdepth()==1);
-        assert(m->owned());
+        //assert(m->getdepth()==1);
+        //assert(m->owned());
         int val = *shared;
         *shared = val+1;
         m->unlock();
@@ -161,6 +161,7 @@ public:
 int main(int argc, char **argv)
 {
     debug("Running mutex tests\n");
+
     show_size<lockfree::mutex>();
 #ifndef LOCKFREE_MUTEX
     show_size<mutex>();
@@ -187,7 +188,7 @@ int main(int argc, char **argv)
     int n = 10000;
     test<lockfree::mutex>(2, n, true, lff);
     test<lockfree::mutex>((int)sched::cpus.size(), n, true, lff);
-    test<lockfree::mutex>(20, n, false, lff);
+    test<lockfree::mutex>(20, 1000000000, false, lff);
 
     n = 1000000;
     test<lockfree::mutex>(2, n, true, lff);
@@ -204,13 +205,15 @@ int main(int argc, char **argv)
     auto f = increment_thread<mutex>;
     test<mutex>((int)sched::cpus.size(), 1000000, true, f);
     test<mutex>(2, 1000000, true, f);
-    test<mutex>(20, 1000000, false, f);
+    test<mutex>(20, 100000000, false, f);
 #endif
 
-//    test<spinlock>((int)sched::cpus.size(), 1000000, true);
-//    test<spinlock>(2, 1000000, true);
-//    test<spinlock>(20, 1000000, false);
-
+#if 0
+    auto inc = increment_thread<spinlock>;
+    test<spinlock>((int)sched::cpus.size(), 1000000, true, inc);
+    test<spinlock>(2, 1000000, true, inc);
+    test<spinlock>(20, 1000000, false, inc);
+#endif
 
     debug("mutex tests succeeded\n");
 }
