@@ -216,7 +216,7 @@ struct ifnet {
 	void	*if_pspare[8];		/* 1 netmap, 7 TDB */
 
 	void add_net_channel(net_channel* nc, ipv4_tcp_conn_id id) { if_classifier.add(id, nc); }
-	void del_net_channel(ipv4_tcp_conn_id id) { if_classifier.remove(id); }
+	void del_net_channel(net_channel* nc, ipv4_tcp_conn_id id) { if_classifier.remove(id, nc); }
 };
 
 typedef void if_init_f_t(void *);

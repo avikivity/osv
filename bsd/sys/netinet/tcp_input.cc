@@ -3251,7 +3251,7 @@ void tcp_teardown_net_channel(tcpcb *tp)
 	if (!tp->nc_intf) {
 		return;
 	}
-	tp->nc_intf->del_net_channel(tcp_connection_id(tp));
+	tp->nc_intf->del_net_channel(tp->nc, tcp_connection_id(tp));
 	tp->nc_intf = nullptr;
 	// keep tp->nc around since it might still contain packets
 }
@@ -3271,7 +3271,7 @@ tcp_free_net_channel(tcpcb* tp)
 		so->so_nc = nullptr;
 	}
 	if (tp->nc_intf) {
-		tp->nc_intf->del_net_channel(tcp_connection_id(tp));
+		tp->nc_intf->del_net_channel(tp->nc, tcp_connection_id(tp));
 	}
 	osv::rcu_dispose(tp->nc);
 	tp->nc = nullptr;

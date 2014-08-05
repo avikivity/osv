@@ -116,11 +116,10 @@ void classifier::add(ipv4_tcp_conn_id id, net_channel* channel)
     }
 }
 
-void classifier::remove(ipv4_tcp_conn_id id)
+void classifier::remove(ipv4_tcp_conn_id id, net_channel* channel)
 {
     WITH_LOCK(_mtx) {
-        auto i = _ipv4_tcp_channels.owner_find(id,
-                std::hash<ipv4_tcp_conn_id>(), key_item_compare());
+        auto i = _ipv4_tcp_channels.owner_find(item(id, channel));
         assert(i);
         _ipv4_tcp_channels.erase(i);
     }

@@ -114,7 +114,7 @@ public:
     classifier();
     // consumer side operations
     void add(ipv4_tcp_conn_id id, net_channel* channel);
-    void remove(ipv4_tcp_conn_id id);
+    void remove(ipv4_tcp_conn_id id, net_channel* channel);
     // producer side operations
     bool post_packet(mbuf* m);
 private:
@@ -124,6 +124,7 @@ private:
         item(const ipv4_tcp_conn_id& key, net_channel* chan) : key(key), chan(chan) {}
         ipv4_tcp_conn_id key;
         net_channel* chan;
+        bool operator==(const item& x) const { return key == x.key && chan == x.chan; }
     };
     struct item_hash : private std::hash<ipv4_tcp_conn_id> {
         size_t operator()(const item& i) const { return std::hash<ipv4_tcp_conn_id>::operator()(i.key); }
