@@ -161,6 +161,7 @@ inline void arch_cpu::init_on_cpu()
     if (features().xsave) {
         cr4 |= cr4_osxsave;
     }
+    cr4 |= cr4_la57;
     write_cr4(cr4);
 
     if (features().xsave) {

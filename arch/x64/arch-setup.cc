@@ -75,7 +75,7 @@ void setup_temporary_phys_map()
     auto pt = reinterpret_cast<u64*>(cr3);
     for (auto&& area : mmu::identity_mapped_areas) {
         auto base = reinterpret_cast<void*>(get_mem_area_base(area));
-        pt[mmu::pt_index(base, 3)] = pt[0];
+        pt[mmu::pt_index(base, 4)] = pt[0];
     }
 }
 

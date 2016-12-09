@@ -113,9 +113,9 @@ void flush_tlb_all()
     tlb_flush_waiter.clear();
 }
 
-static pt_element<4> page_table_root __attribute__((init_priority((int)init_prio::pt_root)));
+static pt_element<page_table_levels()> page_table_root __attribute__((init_priority((int)init_prio::pt_root)));
 
-pt_element<4> *get_root_pt(uintptr_t virt __attribute__((unused))) {
+pt_element<page_table_levels()> *get_root_pt(uintptr_t virt __attribute__((unused))) {
     return &page_table_root;
 }
 

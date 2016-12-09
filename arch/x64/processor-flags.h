@@ -24,6 +24,7 @@
 #define X86_CR4_PCE		(1 << 8)
 #define X86_CR4_OSFXSR		(1 << 9)
 #define X86_CR4_OSXMMEXCPT	(1 << 10)
+#define X86_CR4_LA57        (1 << 12)
 #define X86_CR4_VMXE		(1 << 13)
 #define X86_CR4_SMXE		(1 << 14)
 #define X86_CR4_FSGSBASE	(1 << 16)

@@ -351,8 +351,8 @@ template<typename PageOp, int ParentLevel> class map_level;
 template<typename PageOp>
         void map_range(uintptr_t vma_start, uintptr_t vstart, size_t size, PageOp& page_mapper, size_t slop = page_size)
 {
-    map_level<PageOp, 4> pt_mapper(vma_start, vstart, size, page_mapper, slop);
-    pt_mapper(hw_ptep<4>::force(mmu::get_root_pt(vstart)));
+    map_level<PageOp, page_table_levels()> pt_mapper(vma_start, vstart, size, page_mapper, slop);
+    pt_mapper(hw_ptep<page_table_levels()>::force(mmu::get_root_pt(vstart)));
 }
 
 template<typename PageOp, int ParentLevel> class map_level {
@@ -425,7 +425,7 @@ private:
         auto idx = pt_index(vcur, level);
         auto eidx = pt_index(vend, level);
         base_virt += idx * step;
-        base_virt = (int64_t(base_virt) << 16) >> 16; // extend 47th bit
+        base_virt = (int64_t(base_virt) << 7) >> 7; // extend 56th bit
 
         do {
             auto ptep = pt.at(idx);

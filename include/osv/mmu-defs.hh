@@ -42,16 +42,16 @@ constexpr mem_area identity_mapped_areas[] = {
     mem_area::mempool,
 };
 
-constexpr uintptr_t mem_area_size = uintptr_t(1) << 44;
+constexpr uintptr_t mem_area_size = uintptr_t(1) << 53;
 
 constexpr uintptr_t get_mem_area_base(mem_area area)
 {
-    return 0xffff800000000000 | uintptr_t(area) << 44;
+    return 0xff00000000000000 | uintptr_t(area) << 53;
 }
 
 static inline mem_area get_mem_area(void* addr)
 {
-    return mem_area(reinterpret_cast<uintptr_t>(addr) >> 44 & 7);
+    return mem_area(reinterpret_cast<uintptr_t>(addr) >> 53 & 7);
 }
 
 constexpr void* translate_mem_area(mem_area from, mem_area to, void* addr)
@@ -175,7 +175,7 @@ template<int N>
 pt_element<N> make_empty_pte() { return pt_element<N>(); }
 
 /* get the root of the page table responsible for virtual address virt */
-pt_element<4> *get_root_pt(uintptr_t virt);
+pt_element<page_table_levels()> *get_root_pt(uintptr_t virt);
 
 /* take an error code coming from the exception frame, and return
    whether the error reports a page fault (insn/write) */
@@ -230,7 +230,7 @@ using hw_ptep_base = typename std::conditional<
    The arch must implement change_perm for this class. */
 template <int N>
 class hw_ptep : public hw_ptep_base<N> {
-    static_assert(N >= 0 && N <= 4, "Wrong hw_pte level");
+    static_assert(N >= 0 && N <= page_table_levels(), "Wrong hw_pte level");
 public:
     hw_ptep(const hw_ptep& a) : hw_ptep_base<N>(a.p) {}
     hw_ptep& operator=(const hw_ptep& a) = default;

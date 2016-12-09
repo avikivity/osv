@@ -36,6 +36,7 @@ constexpr ulong cr4_pge = 1u << 7;
 constexpr ulong cr4_pce = 1u << 8;
 constexpr ulong cr4_osfxsr = 1u << 9;
 constexpr ulong cr4_osxmmexcpt = 1u << 10;
+constexpr ulong cr4_la57 = 1u << 12;
 constexpr ulong cr4_vmxe = 1u << 13;
 constexpr ulong cr4_smxe = 1u << 14;
 constexpr ulong cr4_fsgsbase = 1u << 16;

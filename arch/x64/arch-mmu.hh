@@ -13,6 +13,11 @@ extern uint8_t phys_bits, virt_bits;
 constexpr uint8_t rsvd_bits_used = 1;
 constexpr uint8_t max_phys_bits = 52 - rsvd_bits_used;
 
+constexpr int page_table_levels() { return 5; }
+constexpr unsigned virt_addr_bits() { return 12 + 9 * page_table_levels(); }
+constexpr uintptr_t virt_addr_valid_mask() { return (uintptr_t(1) << virt_addr_bits()) - 1; }
+constexpr uintptr_t virt_addr_invalid_mask() { return ~virt_addr_valid_mask(); }
+
 enum class mattr {
     normal
 };

@@ -10,6 +10,11 @@
 
 .data
 .align 4096
+ident_pt_l5:
+    .quad ident_pt_l4 + 0x67
+    .rept 511
+    .quad 0
+    .endr
 ident_pt_l4:
     .quad ident_pt_l3 + 0x67
     .rept 511
@@ -62,6 +67,7 @@ interrupt_stack_top = .
                  | X86_CR4_PAE        \
                  | X86_CR4_PGE        \
                  | X86_CR4_PCE        \
+                 | X86_CR4_LA57       \
                  | X86_CR4_OSFXSR     \
                  | X86_CR4_OSXMMEXCPT )
 
@@ -81,7 +87,7 @@ start32:
     and $~7, %esp
     mov $BOOT_CR4, %eax
     mov %eax, %cr4
-    lea ident_pt_l4, %eax
+    lea ident_pt_l5, %eax
     mov %eax, %cr3
     mov $0xc0000080, %ecx
     mov $0x00000900, %eax
